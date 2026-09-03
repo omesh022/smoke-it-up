@@ -525,6 +525,17 @@ export interface ActiveRunSave {
   timestamp: number;
 }
 
+export interface GameSettings {
+  reducedMotion: boolean;
+  lowEffects: boolean;
+  highContrast: boolean;
+  haptics: boolean;
+  leftHanded: boolean;
+  showFps: boolean;
+}
+
+const SETTINGS_KEY = 'smokeItUp.settings.v1';
+
 const COMBO_MILESTONES = [
   { need: 5, reward: 18, label: 'FLAWLESS!', color: '#8ecae6' },
   { need: 10, reward: 60, label: 'PERFECT STREAK!', color: '#95d5b2' },
@@ -555,6 +566,13 @@ export class Game {
   private lastTime = 0;
   private rafId = 0;
   private totalTime = 0;
+
+  // Settings & Accessibility
+  private settings: GameSettings;
+  private currentFps = 60;
+  private frameCount = 0;
+  private fpsTimer = 0;
+  private lastStatsEmitTime = 0;
 
   // Run state
   private lungHealth = 100;
@@ -681,6 +699,7 @@ export class Game {
     this.highScore = prog.highScore;
     this.scores = prog.scores;
     this.cachedActiveRun = this.loadActiveRunFromStorage();
+    this.settings = this.loadSettings();
     this.bestLevel = prog.bestLevel;
     this.bank = prog.bank;
     this.drinkStock = prog.drinkStock;
@@ -708,6 +727,7 @@ export class Game {
     this.resize();
 
     window.addEventListener('resize', this.resize);
+    window.addEventListener('orientationchange', this.resize);
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     document.addEventListener('visibilitychange', this.onVisibilityChange);
@@ -724,6 +744,7 @@ export class Game {
   destroy() {
     this.stop();
     window.removeEventListener('resize', this.resize);
+    window.removeEventListener('orientationchange', this.resize);
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
@@ -735,6 +756,78 @@ export class Game {
     this.canvas.removeEventListener('mousedown', this.onMouseDown);
     this.canvas.removeEventListener('mouseup', this.onMouseUp);
     this.canvas.removeEventListener('mouseleave', this.onMouseUp);
+  }
+
+  // ---- Settings & Accessibility ----
+  private loadSettings(): GameSettings {
+    const def: GameSettings = {
+      reducedMotion:
+        typeof window !== 'undefined' && window.matchMedia
+          ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+          : false,
+      lowEffects: false,
+      highContrast: false,
+      haptics: true,
+      leftHanded: false,
+      showFps: false,
+    };
+    try {
+      const raw = localStorage.getItem(SETTINGS_KEY);
+      if (!raw) return def;
+      const s = JSON.parse(raw);
+      return {
+        reducedMotion: typeof s.reducedMotion === 'boolean' ? s.reducedMotion : def.reducedMotion,
+        lowEffects: typeof s.lowEffects === 'boolean' ? s.lowEffects : def.lowEffects,
+        highContrast: typeof s.highContrast === 'boolean' ? s.highContrast : def.highContrast,
+        haptics: typeof s.haptics === 'boolean' ? s.haptics : def.haptics,
+        leftHanded: typeof s.leftHanded === 'boolean' ? s.leftHanded : def.leftHanded,
+        showFps: typeof s.showFps === 'boolean' ? s.showFps : def.showFps,
+      };
+    } catch {
+      return def;
+    }
+  }
+
+  private saveSettings() {
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(this.settings));
+    } catch {
+      // ignore
+    }
+  }
+
+  getSettings(): GameSettings {
+    return { ...this.settings };
+  }
+
+  setSettings(s: Partial<GameSettings>) {
+    this.settings = { ...this.settings, ...s };
+    this.saveSettings();
+    this.emitStats(true);
+  }
+
+  triggerHaptic(type: 'light' | 'medium' | 'heavy' | 'success') {
+    if (!this.settings.haptics) return;
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      try {
+        if (type === 'light') navigator.vibrate(12);
+        else if (type === 'medium') navigator.vibrate(28);
+        else if (type === 'heavy') navigator.vibrate(55);
+        else if (type === 'success') navigator.vibrate([18, 30, 24]);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  startSmoking() {
+    if (this.state === 'playing' && !this.shopOpen && !this.isOverlayOpen) {
+      this.setSmoking(true);
+    }
+  }
+
+  stopSmoking() {
+    this.setSmoking(false);
   }
 
   private onVisibilityChange = () => {
@@ -1987,21 +2080,56 @@ export class Game {
     }
   }
 
-  private resize = () => {
+  public resize = () => {
     const rect = this.canvas.getBoundingClientRect();
     this.width = rect.width;
     this.height = rect.height;
+    this.dpr = Math.min(window.devicePixelRatio || 1, 2.0);
     this.canvas.width = Math.floor(rect.width * this.dpr);
     this.canvas.height = Math.floor(rect.height * this.dpr);
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    this.charX = this.width * (this.width < 500 ? 0.22 : 0.18);
-    this.charY = this.height * (this.width < 500 ? 0.53 : 0.62);
-    this.jar.x = this.width * (this.width < 500 ? 0.76 : 0.72);
-    this.jar.y = this.height * (this.width < 500 ? 0.53 : 0.62);
+
+    const isLandscape = this.width > this.height;
+
+    if (!isLandscape) {
+      // Portrait layout (phones: 320x568 up to 430x932)
+      const isNarrow = this.width < 450;
+      this.charX = this.width * (isNarrow ? 0.22 : 0.18);
+      this.charY = this.height * (isNarrow ? 0.52 : 0.58);
+      if (this.jar) {
+        this.jar.x = this.width * (isNarrow ? 0.76 : 0.72);
+        this.jar.y = this.height * (isNarrow ? 0.52 : 0.58);
+        this.jar.w = Math.min(115, Math.max(80, this.width * 0.26));
+        this.jar.h = this.jar.w * 1.27;
+      }
+    } else {
+      // Landscape layout (568x320 up to 915x412 and tablets)
+      const isShort = this.height < 450;
+      if (isShort) {
+        this.charX = Math.max(55, this.width * 0.20);
+        this.charY = this.height * 0.56;
+        if (this.jar) {
+          this.jar.x = Math.min(this.width - 65, this.width * 0.78);
+          this.jar.y = this.height * 0.56;
+          this.jar.w = Math.min(95, Math.max(65, this.height * 0.25));
+          this.jar.h = this.jar.w * 1.25;
+        }
+      } else {
+        this.charX = this.width * 0.22;
+        this.charY = this.height * 0.58;
+        if (this.jar) {
+          this.jar.x = this.width * 0.75;
+          this.jar.y = this.height * 0.58;
+          this.jar.w = Math.min(130, Math.max(90, this.height * 0.22));
+          this.jar.h = this.jar.w * 1.27;
+        }
+      }
+    }
   };
 
   private barY() {
-    return this.height * 0.82;
+    const isLandscape = this.width > this.height;
+    return this.height * (isLandscape ? 0.85 : 0.82);
   }
 
   private toolBase() {
@@ -2013,16 +2141,31 @@ export class Game {
     const v = this.diff(this.level).valueMult;
     const x2 = this.nextJarX2;
     this.nextJarX2 = false;
+    const isLandscape = this.width > this.height;
+    const isShort = this.height < 450;
+    const jw = isLandscape && isShort ? 85 : 110;
+    const jh = isLandscape && isShort ? 110 : 140;
     return {
-      x: 0, y: 0, w: 110, h: 140, fill: 0,
+      x: 0,
+      y: 0,
+      w: jw,
+      h: jh,
+      fill: 0,
       value: Math.round((14 + Math.floor(Math.random() * 3)) * v * (golden ? 4.5 : 1) * (x2 ? 2 : 1)),
       golden,
-      shake: 0, enter: 0, pop: 0, hue: x2 ? 275 : golden ? 45 : 190 + Math.random() * 80,
+      shake: 0,
+      enter: 0,
+      pop: 0,
+      hue: x2 ? 275 : golden ? 45 : 190 + Math.random() * 80,
     };
   }
 
-  private emitStats() {
-    this.onStatsChange?.(this.getStats());
+  private emitStats(force = false) {
+    const now = performance.now();
+    if (force || now - this.lastStatsEmitTime >= 50) {
+      this.lastStatsEmitTime = now;
+      this.onStatsChange?.(this.getStats());
+    }
   }
 
   private addFloater(x: number, y: number, text: string, color: string, size = 22) {
@@ -2038,6 +2181,15 @@ export class Game {
       const dt = Math.min(0.05, (t - this.lastTime) / 1000);
       this.lastTime = t;
       this.totalTime += dt;
+
+      this.frameCount++;
+      this.fpsTimer += dt;
+      if (this.fpsTimer >= 0.5) {
+        this.currentFps = Math.round(this.frameCount / this.fpsTimer);
+        this.frameCount = 0;
+        this.fpsTimer = 0;
+      }
+
       if (this.state === 'playing') this.update(dt, this.shopOpen);
       else if (this.state === 'menu') this.update(dt, true);
       this.render(dt);
@@ -2830,10 +2982,11 @@ export class Game {
       ctx.fillRect(0, 0, W, H);
     }
 
-    for (let i = 0; i < 60; i++) {
+    const starCount = this.settings.lowEffects ? 15 : 60;
+    for (let i = 0; i < starCount; i++) {
       const x = (i * 137.5) % W;
       const y = (i * 89.3) % (H * 0.5);
-      const tw = 0.4 + 0.6 * Math.abs(Math.sin(this.totalTime * 2 + i));
+      const tw = this.settings.reducedMotion ? 0.6 : 0.4 + 0.6 * Math.abs(Math.sin(this.totalTime * 2 + i));
       ctx.fillStyle = `rgba(255,255,255,${(0.15 + tw * 0.35) * (1 - darkness)})`;
       ctx.fillRect(x, y, 1.5, 1.5);
     }
@@ -2855,14 +3008,16 @@ export class Game {
     ctx.closePath();
     ctx.fill();
 
-    for (let i = 0; i < 30; i++) {
-      const wx = (i * 71) % W;
-      const wy = H * 0.78 - 20 - ((i * 23) % 80);
-      const flick = Math.sin(this.totalTime * 3 + i) > 0 ? 1 : 0.3;
-      ctx.globalAlpha = flick * (1 - darkness * 0.6);
-      ctx.fillStyle = `rgba(${th.windowTint}, 0.6)`;
-      ctx.fillRect(wx, wy, 3, 4);
-      ctx.globalAlpha = 1;
+    if (!this.settings.lowEffects) {
+      for (let i = 0; i < 30; i++) {
+        const wx = (i * 71) % W;
+        const wy = H * 0.78 - 20 - ((i * 23) % 80);
+        const flick = this.settings.reducedMotion ? 0.7 : Math.sin(this.totalTime * 3 + i) > 0 ? 1 : 0.3;
+        ctx.globalAlpha = flick * (1 - darkness * 0.6);
+        ctx.fillStyle = `rgba(${th.windowTint}, 0.6)`;
+        ctx.fillRect(wx, wy, 3, 4);
+        ctx.globalAlpha = 1;
+      }
     }
 
     const barY = this.barY();
@@ -2878,7 +3033,9 @@ export class Game {
     ctx.fillRect(0, barY + 4, W, 12);
 
     ctx.save();
-    ctx.translate(this.shakeX, this.shakeY);
+    const sx = this.settings.reducedMotion ? 0 : this.shakeX;
+    const sy = this.settings.reducedMotion ? 0 : this.shakeY;
+    ctx.translate(sx, sy);
 
     this.drawToolObject(ctx);
     this.drawCharacter(ctx);
@@ -2891,8 +3048,8 @@ export class Game {
 
     ctx.restore();
 
-    if (this.flash > 0) {
-      ctx.fillStyle = `rgba(255, 255, 255, ${this.flash * 0.4})`;
+    if (this.flash > 0 && !this.settings.reducedMotion) {
+      ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(0.35, this.flash * 0.4)})`;
       ctx.fillRect(0, 0, W, H);
     }
 
@@ -2904,10 +3061,30 @@ export class Game {
 
     // Critical-health pressure
     if (this.lungHealth < 30) {
-      const intensity = (1 - this.lungHealth / 30) * 0.4;
-      const pulse = 0.5 + 0.5 * Math.sin(this.totalTime * 6);
+      const intensity = (1 - this.lungHealth / 30) * 0.35;
+      const pulse = this.settings.reducedMotion ? 0.6 : 0.5 + 0.5 * Math.sin(this.totalTime * 6);
       ctx.fillStyle = `rgba(255, 30, 60, ${intensity * pulse})`;
       ctx.fillRect(0, 0, W, H);
+    }
+
+    // Dev / Accessibility FPS Display
+    if (this.settings.showFps) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+      ctx.beginPath();
+      if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(W - 85, 12, 75, 24, 6);
+      } else {
+        ctx.rect(W - 85, 12, 75, 24);
+      }
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = this.currentFps >= 50 ? '#34d399' : this.currentFps >= 30 ? '#fbbf24' : '#f87171';
+      ctx.font = 'bold 11px monospace, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${this.currentFps} FPS`, W - 47, 24);
     }
   }
 

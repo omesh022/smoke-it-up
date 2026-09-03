@@ -99,3 +99,49 @@ input[type="range"]::-moz-range-thumb {
   --sar: env(safe-area-inset-right, 0px);
 }
 
+.safe-pt {
+  padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
+}
+.safe-pb {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+}
+.safe-pl {
+  padding-left: max(0.5rem, env(safe-area-inset-left, 0px));
+}
+.safe-pr {
+  padding-right: max(0.5rem, env(safe-area-inset-right, 0px));
+}
+
+/* Touch targets >= 44px */
+.tap-target-44 {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* High contrast mode enhancements */
+.high-contrast-mode {
+  --tw-border-opacity: 0.8 !important;
+}
+.high-contrast-mode .border {
+  border-width: 2px !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+}
+.high-contrast-mode .text-white\/60,
+.high-contrast-mode .text-white\/50,
+.high-contrast-mode .text-white\/40 {
+  color: rgba(255, 255, 255, 0.88) !important;
+}
+
+/* Hold-to-smoke pulsing button animation */
+@keyframes smokePulse {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(251, 191, 36, 0.4), inset 0 0 10px rgba(251, 191, 36, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(251, 191, 36, 0.75), inset 0 0 18px rgba(251, 191, 36, 0.4);
+  }
+}
+.smoke-button-pulse {
+  animation: smokePulse 1.8s ease-in-out infinite;
+}
+
