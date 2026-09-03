@@ -13,7 +13,8 @@ export interface CharacterDef {
   name: string;
   cost: number;
   mult: number;
-  emoji: string;
+  icon: string;
+  emoji?: string;
   blurb: string;
   skin: string;
   skinDark: string;
@@ -35,7 +36,8 @@ export interface ToolDef {
   fill: number;
   drain: number;
   earn: number; // jar payout multiplier
-  emoji: string;
+  icon: string;
+  emoji?: string;
   blurb: string;
   interval: number;
   count: number;
@@ -47,7 +49,8 @@ export interface ToolDef {
 export interface FruitDef {
   id: string;
   name: string;
-  emoji: string;
+  icon: string;
+  emoji?: string;
   cost: number;
   heal: number;
   blurb: string;
@@ -56,7 +59,8 @@ export interface FruitDef {
 export interface ChallengeMod {
   id: string;
   name: string;
-  emoji: string;
+  icon: string;
+  emoji?: string;
   desc: string;
 }
 
@@ -64,135 +68,217 @@ export interface AchievementDef {
   id: string;
   name: string;
   desc: string;
-  emoji: string;
+  icon: string;
+  emoji?: string;
   stars?: number;
   blasters?: number;
 }
+
+export const GLOBAL_TOOL_DAMAGE_MULT = 0.90; // Exactly 10% damage reduction applied globally
+export const GLOBAL_EARNINGS_MULT = 1.35; // Exactly 35% earnings increase on completed jars
+
+export type GameMode = 'classic' | 'relaxed' | 'rush';
+
+export interface GameModeDef {
+  id: GameMode;
+  name: string;
+  icon: string;
+  emoji?: string;
+  badgeColor: string;
+  tagline: string;
+  desc: string;
+  benefits: string[];
+  difficulty: 'Easy' | 'Normal' | 'Hard';
+  damageMult: number;
+  earnMult: number;
+  fillSpeedMult: number;
+  recoveryRateMult: number;
+}
+
+export const GAME_MODES: Record<GameMode, GameModeDef> = {
+  classic: {
+    id: 'classic',
+    name: 'Classic',
+    icon: 'scale',
+    emoji: '⚖️',
+    badgeColor: 'border-purple-400/40 bg-purple-500/20 text-purple-200',
+    tagline: 'Standard balanced experience',
+    desc: 'The original Smoke It Up gameplay. Balanced lung damage, standard payouts, and steady progression.',
+    benefits: [
+      'Global -10% tool damage applied',
+      'Global +35% earnings on every jar',
+      'Standard challenge frequencies & quotas',
+    ],
+    difficulty: 'Normal',
+    damageMult: 1.0,
+    earnMult: 1.0,
+    fillSpeedMult: 1.0,
+    recoveryRateMult: 1.0,
+  },
+  relaxed: {
+    id: 'relaxed',
+    name: 'Relaxed',
+    icon: 'lungs',
+    emoji: '🧘',
+    badgeColor: 'border-emerald-400/40 bg-emerald-500/20 text-emerald-200',
+    tagline: 'Chill vibes & easier survival',
+    desc: 'Lower lung damage and accelerated passive recovery. Perfect for casual play and stress-free filling.',
+    benefits: [
+      '25% less lung damage (0.75x)',
+      'Faster passive lung recovery (+50%)',
+      'Slightly lower jar rewards (0.85x)',
+    ],
+    difficulty: 'Easy',
+    damageMult: 0.75,
+    earnMult: 0.85,
+    fillSpeedMult: 1.0,
+    recoveryRateMult: 1.5,
+  },
+  rush: {
+    id: 'rush',
+    name: 'Rush',
+    icon: 'zap',
+    emoji: '⚡',
+    badgeColor: 'border-orange-400/40 bg-orange-500/20 text-orange-200',
+    tagline: 'High stakes, high rewards',
+    desc: 'Fast jar filling speed and +25% payout bonus, but tools burn lungs 35% harder. Fast reflexes required.',
+    benefits: [
+      '35% faster jar filling speed (1.35x)',
+      '+25% bonus cash on all jars (1.25x)',
+      'Higher lung drain & difficulty (+35%)',
+    ],
+    difficulty: 'Hard',
+    damageMult: 1.35,
+    earnMult: 1.25,
+    fillSpeedMult: 1.35,
+    recoveryRateMult: 0.8,
+  },
+};
 
 export const STAR_TO_CASH = 25;
 
 export const CHARACTERS: CharacterDef[] = [
   {
-    id: 'jid', name: 'JID', cost: 0, mult: 1.0, emoji: '🎤',
+    id: 'jid', name: 'JID', cost: 0, mult: 1.0, icon: 'mic',
     skin: '#8a5a34', skinDark: '#7a4c28', hair: 'braids', hairColor: '#241a12',
     beard: true, beardColor: '#241a12', accessory: 'glasses', outfit: 'tee',
     shirt: '#2f5d8a', shirtDark: '#244a6e', accent: '#ffd93d',
     blurb: 'The Forever Story begins here. Default legend.',
   },
   {
-    id: '21savage', name: '21 Savage', cost: 700, mult: 1.15, emoji: '🥷',
+    id: '21savage', name: '21 Savage', cost: 700, mult: 1.15, icon: 'flame',
     skin: '#5c3a26', skinDark: '#4a2c1a', hair: 'short', hairColor: '#161616',
     beard: true, beardColor: '#161616', accessory: 'chain', outfit: 'hoodie',
     shirt: '#101014', shirtDark: '#0a0a0c', accent: '#b23a3a',
     blurb: 'Straight out the Slaughter Gang.',
   },
   {
-    id: 'jcole', name: 'J. Cole', cost: 1800, mult: 1.3, emoji: '🧢',
+    id: 'jcole', name: 'J. Cole', cost: 1800, mult: 1.3, icon: 'disc',
     skin: '#8a5a34', skinDark: '#7a4c28', hair: 'fade', hairColor: '#241a12',
     beard: false, beardColor: '', accessory: 'cap', outfit: 'hoodie',
     shirt: '#3a6ea5', shirtDark: '#2f5d8a', accent: '#f0f0f0',
     blurb: 'Dreamville certified. No dreams — just smoke.',
   },
   {
-    id: 'future', name: 'Future', cost: 4200, mult: 1.5, emoji: '😤',
+    id: 'future', name: 'Future', cost: 4200, mult: 1.5, icon: 'glasses',
     skin: '#5c3a26', skinDark: '#4a2c1a', hair: 'braids', hairColor: '#181818',
     beard: true, beardColor: '#181818', accessory: 'grill', outfit: 'hoodie',
     shirt: '#1c1c24', shirtDark: '#14141a', accent: '#c9a227',
     blurb: 'Pluto. Mask on, lungs off. Brrr.',
   },
   {
-    id: 'carti', name: 'Playboi Carti', cost: 8000, mult: 1.75, emoji: '🧛',
+    id: 'carti', name: 'Playboi Carti', cost: 8000, mult: 1.75, icon: 'sparkles',
     skin: '#e0a882', skinDark: '#d09870', hair: 'long', hairColor: '#141414',
     beard: false, beardColor: '', accessory: 'star', outfit: 'tee',
     shirt: '#d43a4a', shirtDark: '#b02e3c', accent: '#f0f0f0',
     blurb: 'Whole Lotta Smoke. Vamp mode: engaged.',
   },
   {
-    id: 'kanye', name: 'Kanye West', cost: 14000, mult: 2.05, emoji: '🌊',
+    id: 'kanye', name: 'Kanye West', cost: 14000, mult: 2.05, icon: 'glasses',
     skin: '#7a4c28', skinDark: '#6a3e20', hair: 'buzz', hairColor: '#1a1208',
     beard: true, beardColor: '#1a1208', accessory: 'sunglasses', outfit: 'hoodie',
     shirt: '#1a1a1f', shirtDark: '#121216', accent: '#8a8a8a',
     blurb: 'I am a god... of smoke.',
   },
   {
-    id: 'eminem', name: 'Eminem', cost: 15000, mult: 2.35, emoji: '🎤',
+    id: 'eminem', name: 'Eminem', cost: 15000, mult: 2.35, icon: 'mic',
     skin: '#f2dcc8', skinDark: '#e8ccb0', hair: 'buzz', hairColor: '#e8d8a0',
     beard: false, beardColor: '', accessory: 'none', outfit: 'hoodie',
     shirt: '#d8d8d8', shirtDark: '#c8c8c8', accent: '#5a5a5a',
     blurb: 'Will the real slim shady please light up?',
   },
   {
-    id: 'nas', name: 'Nas', cost: 22000, mult: 2.7, emoji: '📖',
+    id: 'nas', name: 'Nas', cost: 22000, mult: 2.7, icon: 'crown',
     skin: '#6a4428', skinDark: '#5a3820', hair: 'fade', hairColor: '#1a1208',
     beard: true, beardColor: '#1a1208', accessory: 'chain', outfit: 'suit',
     shirt: '#1a1a22', shirtDark: '#121218', accent: '#ffffff',
     blurb: 'Illmatic. Queensbridge royalty of smoke.',
   },
   {
-    id: 'kendrick', name: 'Kendrick Lamar', cost: 32000, mult: 3.05, emoji: '🏆',
+    id: 'kendrick', name: 'Kendrick Lamar', cost: 32000, mult: 3.05, icon: 'trophy',
     skin: '#7a4c28', skinDark: '#6a3e20', hair: 'short', hairColor: '#1a1208',
     beard: true, beardColor: '#1a1208', accessory: 'none', outfit: 'hoodie',
     shirt: '#2a2a34', shirtDark: '#1e1e26', accent: '#c9a227',
     blurb: 'DAMN. The king of lyrical lung capacity.',
   },
   {
-    id: 'rocky', name: 'ASAP Rocky', cost: 45000, mult: 3.4, emoji: '💅',
+    id: 'rocky', name: 'ASAP Rocky', cost: 45000, mult: 3.4, icon: 'hat',
     skin: '#a06a3e', skinDark: '#905a32', hair: 'long', hairColor: '#1c1410',
     beard: false, beardColor: '', accessory: 'glasses', outfit: 'jacket',
     shirt: '#c25a8a', shirtDark: '#a84872', accent: '#111111',
     blurb: 'Fashion Killa. Swag on the smoke, style on the sell.',
   },
   {
-    id: 'cardi', name: 'Cardi B', cost: 62000, mult: 3.8, emoji: '💋',
+    id: 'cardi', name: 'Cardi B', cost: 62000, mult: 3.8, icon: 'diamond',
     skin: '#8a5a34', skinDark: '#7a4c28', hair: 'curly', hairColor: '#141414',
     beard: false, beardColor: '', accessory: 'chain', outfit: 'jacket',
     shirt: '#d43a4a', shirtDark: '#b02e3c', accent: '#ffd93d',
     blurb: 'Bodak Yellow. Money moves only — OKURRR.',
   },
   {
-    id: 'lilwayne', name: 'Lil Wayne', cost: 85000, mult: 4.2, emoji: '🐐',
+    id: 'lilwayne', name: 'Lil Wayne', cost: 85000, mult: 4.2, icon: 'guitar',
     skin: '#5c3a26', skinDark: '#4a2c1a', hair: 'braids', hairColor: '#141414',
     beard: false, beardColor: '', accessory: 'grill', outfit: 'tee',
     shirt: '#b23a3a', shirtDark: '#982e2e', accent: '#ffffff',
     blurb: 'A Milli. The GOAT of bars and blunts.',
   },
   {
-    id: 'snoop', name: 'Snoop Dogg', cost: 110000, mult: 4.6, emoji: '🐶',
+    id: 'snoop', name: 'Snoop Dogg', cost: 110000, mult: 4.6, icon: 'leaf',
     skin: '#b5785a', skinDark: '#a5684a', hair: 'long', hairColor: '#201008',
     beard: true, beardColor: '#201008', accessory: 'chain', outfit: 'tee',
     shirt: '#5a2d8a', shirtDark: '#4a2370', accent: '#ffd93d',
     blurb: 'The O.G. Drop it like it\'s hot — literally.',
   },
   {
-    id: 'wiz', name: 'Wiz Khalifa', cost: 145000, mult: 5.1, emoji: '🍃',
+    id: 'wiz', name: 'Wiz Khalifa', cost: 145000, mult: 5.1, icon: 'leaf',
     skin: '#e8b88a', skinDark: '#d8a47a', hair: 'long', hairColor: '#c9a86a',
     beard: false, beardColor: '', accessory: 'chain', outfit: 'tee',
     shirt: '#6a2d8e', shirtDark: '#5a2378', accent: '#d9b64a',
     blurb: 'Taylor Gang or die. Premium gas lungs.',
   },
   {
-    id: 'drake', name: 'Drake', cost: 190000, mult: 5.7, emoji: '🦉',
+    id: 'drake', name: 'Drake', cost: 190000, mult: 5.7, icon: 'crown',
     skin: '#a06a3e', skinDark: '#905a32', hair: 'fade', hairColor: '#1c1410',
     beard: true, beardColor: '#241a12', accessory: 'chain', outfit: 'tee',
     shirt: '#e8e6e2', shirtDark: '#d8d6d2', accent: '#5a5a5a',
     blurb: 'Started from the bottom, now here selling smoke containers.',
   },
   {
-    id: 'weeknd', name: 'The Weeknd', cost: 250000, mult: 6.3, emoji: '🎭',
+    id: 'weeknd', name: 'The Weeknd', cost: 250000, mult: 6.3, icon: 'glasses',
     skin: '#a8765a', skinDark: '#98664a', hair: 'curly', hairColor: '#141414',
     beard: false, beardColor: '', accessory: 'glasses', outfit: 'jacket',
     shirt: '#d23c3c', shirtDark: '#b02e2e', accent: '#111111',
     blurb: 'Blinding lights, blurry lungs. Save your fruit.',
   },
   {
-    id: 'travis', name: 'Travis Scott', cost: 320000, mult: 7.0, emoji: '🚀',
+    id: 'travis', name: 'Travis Scott', cost: 320000, mult: 7.0, icon: 'flame',
     skin: '#c88a5a', skinDark: '#b87a4a', hair: 'braids', hairColor: '#201008',
     beard: false, beardColor: '', accessory: 'chain', outfit: 'flannel',
     shirt: '#8a6a4a', shirtDark: '#7a5a3a', accent: '#2a2a2a',
     blurb: 'Astroworld. Cactus Jack says: keep smoking, keep selling.',
   },
   {
-    id: 'jayz', name: 'Jay-Z', cost: 420000, mult: 7.8, emoji: '👑',
+    id: 'jayz', name: 'Jay-Z', cost: 420000, mult: 7.8, icon: 'crown',
     skin: '#4a2c1c', skinDark: '#3c2214', hair: 'bald', hairColor: '',
     beard: true, beardColor: '#241a12', accessory: 'chain', outfit: 'suit',
     shirt: '#101014', shirtDark: '#08080a', accent: '#e8e8e8',
@@ -202,49 +288,48 @@ export const CHARACTERS: CharacterDef[] = [
 
 export const TOOLS: ToolDef[] = [
   {
-    id: 'cig', name: 'Cigarette', cost: 0, fill: 0.85, drain: 1.75, earn: 1.0, emoji: '🚬',
+    id: 'cig', name: 'Cigarette', cost: 0, fill: 0.85, drain: 1.75, earn: 1.0, icon: 'cigarette',
     interval: 0.018, count: 2, size: 12, palette: ['#cfcfcf', '#c2c2c2'],
     blurb: 'Slow & harsh. Holding forever will kill you.',
   },
   {
-    id: 'ecig', name: 'E-Cigarette', cost: 520, fill: 0.9, drain: 1.3, earn: 1.08, emoji: '⚡',
+    id: 'ecig', name: 'E-Cigarette', cost: 520, fill: 0.9, drain: 1.3, earn: 1.08, icon: 'vape',
     interval: 0.015, count: 2, size: 11, palette: ['#dfe8f8', '#cdd9ef'], led: '#5adcff',
     blurb: 'Safer lungs, still slow. Best early upgrade.',
   },
   {
-    id: 'pod', name: 'Pod', cost: 1400, fill: 1.15, drain: 1.7, earn: 1.28, emoji: '🧪',
+    id: 'pod', name: 'Pod', cost: 1400, fill: 1.15, drain: 1.7, earn: 1.28, icon: 'modbox',
     interval: 0.014, count: 2, size: 12, palette: ['#e9ecf8', '#d9deee'], led: '#c77dff',
     blurb: 'Modest speed & pay. Still needs careful bursts.',
   },
   {
-    id: 'cigar', name: 'Cigar', cost: 3200, fill: 1.55, drain: 2.85, earn: 1.7, emoji: '🔥',
+    id: 'cigar', name: 'Cigar', cost: 3200, fill: 1.55, drain: 2.85, earn: 1.7, icon: 'cigar',
     interval: 0.013, count: 2, size: 15, palette: ['#cbb59a', '#bfa888'],
     blurb: 'Faster fill & better pay. Real lung pressure.',
   },
   {
-    id: 'hookah', name: 'Hookah', cost: 9000, fill: 2.35, drain: 4.0, earn: 2.35, emoji: '🫧',
+    id: 'hookah', name: 'Hookah', cost: 9000, fill: 2.35, drain: 4.0, earn: 2.35, icon: 'hookah',
     interval: 0.01, count: 2, size: 17, palette: ['#c9a8e8', '#f0a8c8', '#a8d8e8', '#f0d8a8'],
     blurb: 'Fast money. Heavy drain — heal often or die.',
   },
   {
-    id: 'bong', name: 'Bong', cost: 20000, fill: 3.15, drain: 5.1, earn: 3.1, emoji: '💨',
+    id: 'bong', name: 'Bong', cost: 20000, fill: 3.15, drain: 5.1, earn: 3.1, icon: 'bong',
     interval: 0.009, count: 2, size: 18, palette: ['#e8e8f0', '#f0f0f5'],
     blurb: 'Huge pay, brutal lungs. Experts only.',
   },
   {
-    id: 'blunt', name: 'Blunt', cost: 45000, fill: 4.0, drain: 6.2, earn: 4.0, emoji: '🍃',
+    id: 'blunt', name: 'Blunt', cost: 45000, fill: 4.0, drain: 6.2, earn: 4.0, icon: 'blunt',
     interval: 0.011, count: 2, size: 15, palette: ['#a8c49a', '#95b887'],
     blurb: 'Endgame glass cannon. Insane fill & pay.',
   },
 ];
 
 export const FRUITS: FruitDef[] = [
-  { id: 'apple', name: 'Apple', emoji: '🍎', cost: 10, heal: 18, blurb: 'Best early value. +18 HP' },
-  { id: 'orange', name: 'Orange', emoji: '🍊', cost: 18, heal: 30, blurb: 'Solid mid heal. +30 HP' },
-  { id: 'blueberry', name: 'Blueberries', emoji: '🫐', cost: 38, heal: 50, blurb: 'Strong recovery. +50 HP' },
-  { id: 'guava', name: 'Guava', emoji: '🍈', cost: 70, heal: 72, blurb: 'Big heal. +72 HP' },
-  { id: 'avocado', name: 'Avocado', emoji: '🥑', cost: 120, heal: 95, blurb: 'Near-full heal. +95 HP' },
-  { id: 'pineapple', name: 'Pineapple', emoji: '🍍', cost: 220, heal: 100, blurb: 'Full recovery. +100 HP' },
+  { id: 'apple', name: 'Apple', icon: 'apple', cost: 10, heal: 18, blurb: 'Best early value. +18 HP' },
+  { id: 'orange', name: 'Orange', icon: 'orange', cost: 18, heal: 30, blurb: 'Solid mid heal. +30 HP' },
+  { id: 'blueberry', name: 'Blueberries', icon: 'blueberry', cost: 38, heal: 50, blurb: 'Strong recovery. +50 HP' },
+  { id: 'guava', name: 'Guava', icon: 'guava', cost: 70, heal: 72, blurb: 'Big heal. +72 HP' },
+  { id: 'avocado', name: 'Avocado', icon: 'avocado', cost: 120, heal: 100, blurb: 'Full health recovery. Restores to 100% HP' },
 ];
 
 export const ENERGY_DRINK = {
@@ -252,69 +337,69 @@ export const ENERGY_DRINK = {
   instant: 8,
   regenRate: 3.0,
   regenTime: 8,
-  emoji: '⚡',
+  icon: 'zap',
   maxStock: 12,
   blurb: '+8 now, then +3 HP/s for 8s. Only passive regen!',
 };
 
 export const CHALLENGE_MODS: ChallengeMod[] = [
-  { id: 'huge', name: 'Giant Jars', emoji: '🫙', desc: 'Jars need 2x smoke — pay 2.2x' },
-  { id: 'flu', name: 'The Flu', emoji: '🤧', desc: 'Sick! +30% lung drain, constant cough' },
-  { id: 'storm', name: 'Heavy Storm', emoji: '🌧️', desc: 'Rain & dark skies. Healing cut in half' },
-  { id: 'blackout', name: 'Blackout', emoji: '🌑', desc: 'Darker everywhere. +15% lung drain' },
-  { id: 'dud', name: 'Dud Tools', emoji: '🛠️', desc: 'Your tool fills 40% slower' },
-  { id: 'thin', name: 'Thin Smoke', emoji: '💨', desc: 'Less smoke per drag' },
-  { id: 'burn', name: 'Burning Lungs', emoji: '🔥', desc: 'Lung drain +50%' },
-  { id: 'weak', name: 'Weak Body', emoji: '🫀', desc: 'Healing 40% less effective' },
-  { id: 'windy', name: 'Crosswinds', emoji: '💨', desc: 'Strong wind scatters smoke' },
-  { id: 'choke', name: 'Choke Hold', emoji: '😷', desc: 'Fill speed cut 25%, drain +20%' },
-  { id: 'tax', name: 'Smoke Tax', emoji: '🧾', desc: 'Jar payouts cut 25%' },
-  { id: 'night', name: 'All-Nighter', emoji: '🌙', desc: 'Dark + cough more often' },
+  { id: 'huge', name: 'Giant Jars', icon: 'scale', desc: 'Jars need 2x smoke — pay 2.2x' },
+  { id: 'flu', name: 'The Flu', icon: 'thermometer', desc: 'Sick! +30% lung drain, constant cough' },
+  { id: 'storm', name: 'Heavy Storm', icon: 'wind', desc: 'Rain & dark skies. Healing cut in half' },
+  { id: 'blackout', name: 'Blackout', icon: 'zapoff', desc: 'Darker everywhere. +15% lung drain' },
+  { id: 'dud', name: 'Dud Tools', icon: 'alert', desc: 'Your tool fills 40% slower' },
+  { id: 'thin', name: 'Thin Smoke', icon: 'lungs', desc: 'Less smoke per drag' },
+  { id: 'burn', name: 'Burning Lungs', icon: 'flame', desc: 'Lung drain +50%' },
+  { id: 'weak', name: 'Weak Body', icon: 'lungs', desc: 'Healing 40% less effective' },
+  { id: 'windy', name: 'Crosswinds', icon: 'wind', desc: 'Strong wind scatters smoke' },
+  { id: 'choke', name: 'Choke Hold', icon: 'alert', desc: 'Fill speed cut 25%, drain +20%' },
+  { id: 'tax', name: 'Smoke Tax', icon: 'money', desc: 'Jar payouts cut 25%' },
+  { id: 'night', name: 'All-Nighter', icon: 'scale', desc: 'Dark + cough more often' },
 ];
 
 export const ACHIEVEMENTS: AchievementDef[] = [
-  { id: 'first', name: 'First Jar', desc: 'Fill your very first jar', emoji: '🫙', stars: 1 },
-  { id: 'jars10', name: 'Jar Collector', desc: 'Fill 10 jars (lifetime)', emoji: '🗃️', stars: 2 },
-  { id: 'jars50', name: 'Jar Hoarder', desc: 'Fill 50 jars (lifetime)', emoji: '📦', stars: 3 },
-  { id: 'jars100', name: 'Jar Factory', desc: 'Fill 100 jars (lifetime)', emoji: '🏭', stars: 4, blasters: 1 },
-  { id: 'jars200', name: 'Jar Tycoon', desc: 'Fill 200 jars (lifetime)', emoji: '🏦', stars: 5, blasters: 1 },
-  { id: 'jars500', name: 'Smoke Empire', desc: 'Fill 500 jars (lifetime)', emoji: '🌆', stars: 8, blasters: 2 },
-  { id: 'combo5', name: 'On Fire', desc: 'Reach a 5.0 combo', emoji: '🔥', stars: 2 },
-  { id: 'combo10', name: 'Unstoppable', desc: 'Reach a 10.0 combo', emoji: '⚡', stars: 3, blasters: 1 },
-  { id: 'combo15', name: 'Blazing Path', desc: 'Reach a 15.0 combo', emoji: '☄️', stars: 4 },
-  { id: 'combo20', name: 'Godly Streak', desc: 'Reach a 20.0 combo', emoji: '🌋', stars: 5, blasters: 1 },
-  { id: 'combo30', name: 'Untouchable', desc: 'Reach a 30.0 combo', emoji: '👑', stars: 8, blasters: 2 },
-  { id: 'gold5', name: 'Golden Touch', desc: 'Fill 5 golden jars (lifetime)', emoji: '⭐', stars: 2 },
-  { id: 'gold20', name: 'Midas', desc: 'Fill 20 golden jars (lifetime)', emoji: '✨', stars: 4, blasters: 1 },
-  { id: 'gold50', name: 'Gold Rush', desc: 'Fill 50 golden jars (lifetime)', emoji: '🏅', stars: 6, blasters: 1 },
-  { id: 'lv10', name: 'Getting Serious', desc: 'Reach level 10', emoji: '🎚️', stars: 2 },
-  { id: 'lv25', name: 'Veteran', desc: 'Reach level 25', emoji: '🎖️', stars: 3, blasters: 1 },
-  { id: 'lv40', name: 'Hardened', desc: 'Reach level 40', emoji: '🛡️', stars: 4 },
-  { id: 'lv50', name: 'Smoke Legend', desc: 'Reach level 50', emoji: '🏆', stars: 5, blasters: 1 },
-  { id: 'lv75', name: 'Iron Lungs', desc: 'Reach level 75', emoji: '💪', stars: 6, blasters: 1 },
-  { id: 'lv100', name: 'Immortal Lungs', desc: 'Reach level 100', emoji: '🫁', stars: 10, blasters: 2 },
-  { id: 'fruit30', name: 'Fruit Fanatic', desc: 'Eat 30 fruits (lifetime)', emoji: '🍎', stars: 2 },
-  { id: 'fruit100', name: 'Orchard Boss', desc: 'Eat 100 fruits (lifetime)', emoji: '🌳', stars: 4 },
-  { id: 'energy20', name: 'Caffeinated', desc: 'Drink 20 energy drinks (lifetime)', emoji: '⚡', stars: 2 },
-  { id: 'energy50', name: 'Wired', desc: 'Drink 50 energy drinks (lifetime)', emoji: '🔋', stars: 3 },
-  { id: 'challenge3', name: 'Storm Slayer', desc: 'Clear 3 challenge levels', emoji: '🌪️', stars: 3, blasters: 1 },
-  { id: 'challenge10', name: 'Challenge King', desc: 'Clear 10 challenge levels', emoji: '⚔️', stars: 5, blasters: 1 },
-  { id: 'challenge25', name: 'Unbreakable', desc: 'Clear 25 challenge levels', emoji: '🧱', stars: 8, blasters: 2 },
-  { id: 'milestone', name: 'Flawless', desc: 'Earn your first combo milestone', emoji: '💎', stars: 2 },
-  { id: 'milestones5', name: 'Streak Artist', desc: 'Earn 5 combo milestones (lifetime)', emoji: '🎨', stars: 4, blasters: 1 },
-  { id: 'rich', name: 'Grand Hustle', desc: 'Hold $1,000 in your bank at once', emoji: '💰', stars: 3 },
-  { id: 'rich2', name: 'Baller', desc: 'Hold $10,000 in your bank at once', emoji: '🤑', stars: 5, blasters: 1 },
-  { id: 'rich3', name: 'Whale', desc: 'Hold $50,000 in your bank at once', emoji: '🐋', stars: 8, blasters: 2 },
-  { id: 'chars5', name: 'Talent Scout', desc: 'Own 5 different smokers', emoji: '🎤', stars: 3 },
-  { id: 'chars10', name: 'Roster Builder', desc: 'Own 10 different smokers', emoji: '📋', stars: 5, blasters: 1 },
-  { id: 'toolsAll', name: 'Toolbox', desc: 'Own every smoking tool', emoji: '🧰', stars: 6, blasters: 2 },
-  { id: 'perfect10', name: 'Perfect 10', desc: 'Land 10 perfect jars in a row', emoji: '💯', stars: 3, blasters: 1 },
-  { id: 'perfect20', name: 'Machine', desc: 'Land 20 perfect jars in a row', emoji: '🤖', stars: 5, blasters: 1 },
-  { id: 'closeCall', name: 'Close Call', desc: 'Survive a jar with under 10% lungs', emoji: '😰', stars: 2 },
-  { id: 'blaster1', name: 'First Blast', desc: 'Use a Smoke Blaster once', emoji: '💥', stars: 1 },
-  { id: 'blaster10', name: 'Demolition', desc: 'Use 10 Smoke Blasters', emoji: '🧨', stars: 4 },
-  { id: 'stars10', name: 'Star Collector', desc: 'Earn 10 golden stars total', emoji: '🌟', stars: 2 },
-  { id: 'stars50', name: 'Constellation', desc: 'Earn 50 golden stars total', emoji: '✨', stars: 5, blasters: 1 },
+  { id: 'first', name: 'First Jar', desc: 'Fill your very first jar', icon: 'trophy', stars: 1 },
+  { id: 'jars10', name: 'Jar Collector', desc: 'Fill 10 jars (lifetime)', icon: 'award', stars: 2 },
+  { id: 'jars50', name: 'Jar Hoarder', desc: 'Fill 50 jars (lifetime)', icon: 'trophy', stars: 3 },
+  { id: 'jars100', name: 'Jar Factory', desc: 'Fill 100 jars (lifetime)', icon: 'trophy', stars: 4, blasters: 1 },
+  { id: 'jars200', name: 'Jar Tycoon', desc: 'Fill 200 jars (lifetime)', icon: 'trophy', stars: 5, blasters: 1 },
+  { id: 'jars500', name: 'Smoke Empire', desc: 'Fill 500 jars (lifetime)', icon: 'crown', stars: 8, blasters: 2 },
+  { id: 'combo5', name: 'On Fire', desc: 'Reach a 5.0 combo', icon: 'flame', stars: 2 },
+  { id: 'combo10', name: 'Unstoppable', desc: 'Reach a 10.0 combo', icon: 'zap', stars: 3, blasters: 1 },
+  { id: 'combo15', name: 'Blazing Path', desc: 'Reach a 15.0 combo', icon: 'flame', stars: 4 },
+  { id: 'combo20', name: 'Godly Streak', desc: 'Reach a 20.0 combo', icon: 'zap', stars: 5, blasters: 1 },
+  { id: 'combo30', name: 'Untouchable', desc: 'Reach a 30.0 combo', icon: 'crown', stars: 8, blasters: 2 },
+  { id: 'gold5', name: 'Golden Touch', desc: 'Fill 5 golden jars (lifetime)', icon: 'star', stars: 2 },
+  { id: 'gold20', name: 'Midas', desc: 'Fill 20 golden jars (lifetime)', icon: 'star', stars: 4, blasters: 1 },
+  { id: 'gold50', name: 'Gold Rush', desc: 'Fill 50 golden jars (lifetime)', icon: 'star', stars: 6, blasters: 1 },
+  { id: 'lv10', name: 'Getting Serious', desc: 'Reach level 10', icon: 'level', stars: 2 },
+  { id: 'lv25', name: 'Veteran', desc: 'Reach level 25', icon: 'level', stars: 3, blasters: 1 },
+  { id: 'lv40', name: 'Hardened', desc: 'Reach level 40', icon: 'shield', stars: 4 },
+  { id: 'lv50', name: 'Smoke Legend', desc: 'Reach level 50', icon: 'trophy', stars: 5, blasters: 1 },
+  { id: 'lv75', name: 'Iron Lungs', desc: 'Reach level 75', icon: 'shield', stars: 6, blasters: 1 },
+  { id: 'lv100', name: 'Immortal Lungs', desc: 'Reach level 100', icon: 'crown', stars: 10, blasters: 2 },
+  { id: 'fruit30', name: 'Fruit Fanatic', desc: 'Eat 30 fruits (lifetime)', icon: 'apple', stars: 2 },
+  { id: 'fruit100', name: 'Orchard Boss', desc: 'Eat 100 fruits (lifetime)', icon: 'avocado', stars: 4 },
+  { id: 'energy20', name: 'Caffeinated', desc: 'Drink 20 energy drinks (lifetime)', icon: 'zap', stars: 2 },
+  { id: 'energy50', name: 'Wired', desc: 'Drink 50 energy drinks (lifetime)', icon: 'zap', stars: 3 },
+  { id: 'challenge3', name: 'Storm Slayer', desc: 'Clear 3 challenge levels', icon: 'shield', stars: 3, blasters: 1 },
+  { id: 'challenge10', name: 'Challenge King', desc: 'Clear 10 challenge levels', icon: 'shield', stars: 5, blasters: 1 },
+  { id: 'challenge25', name: 'Unbreakable', desc: 'Clear 25 challenge levels', icon: 'shield', stars: 8, blasters: 2 },
+  { id: 'milestone', name: 'Flawless', desc: 'Earn your first combo milestone', icon: 'diamond', stars: 2 },
+  { id: 'milestones5', name: 'Streak Artist', desc: 'Earn 5 combo milestones (lifetime)', icon: 'diamond', stars: 4, blasters: 1 },
+  { id: 'rich', name: 'Grand Hustle', desc: 'Hold $1,000 in your bank at once', icon: 'money', stars: 3 },
+  { id: 'rich2', name: 'Baller', desc: 'Hold $10,000 in your bank at once', icon: 'money', stars: 5, blasters: 1 },
+  { id: 'rich3', name: 'Whale', desc: 'Hold $50,000 in your bank at once', icon: 'money', stars: 8, blasters: 2 },
+  { id: 'chars5', name: 'Talent Scout', desc: 'Own 5 different smokers', icon: 'mic', stars: 3 },
+  { id: 'chars10', name: 'Roster Builder', desc: 'Own 10 different smokers', icon: 'crown', stars: 5, blasters: 1 },
+  { id: 'toolsAll', name: 'Toolbox', desc: 'Own every smoking tool', icon: 'blunt', stars: 6, blasters: 2 },
+  { id: 'perfect10', name: 'Perfect 10', desc: 'Land 10 perfect jars in a row', icon: 'star', stars: 3, blasters: 1 },
+  { id: 'perfect20', name: 'Machine', desc: 'Land 20 perfect jars in a row', icon: 'star', stars: 5, blasters: 1 },
+  { id: 'closeCall', name: 'Close Call', desc: 'Survive a jar with under 10% lungs', icon: 'shield', stars: 2 },
+  { id: 'blaster1', name: 'First Blast', desc: 'Use a Smoke Blaster once', icon: 'blaster', stars: 1 },
+  { id: 'blaster10', name: 'Demolition', desc: 'Use 10 Smoke Blasters', icon: 'blaster', stars: 4 },
+  { id: 'stars10', name: 'Star Collector', desc: 'Earn 10 golden stars total', icon: 'star', stars: 2 },
+  { id: 'stars50', name: 'Constellation', desc: 'Earn 50 golden stars total', icon: 'star', stars: 5, blasters: 1 },
 ];
 
 // ============ Stats ============
@@ -354,6 +439,12 @@ export interface GameStats {
   smokeBlasters: number;
   lifetimeStars: number;
   lifetimeBlastersUsed: number;
+  gameMode: GameMode;
+  isPassiveRecovering: boolean;
+  hasActiveRun: boolean;
+  activeRunLevel?: number;
+  activeRunScore?: number;
+  activeRunMode?: GameMode;
 }
 
 interface Particle {
@@ -447,9 +538,43 @@ interface Progress {
   smokeBlasters: number;
   lifetimeStars: number;
   lifetimeBlastersUsed: number;
+  preferredMode?: GameMode;
 }
 
 const LS_KEY = 'smokeItUp.progress.v5';
+const ACTIVE_RUN_KEY = 'smokeItUp.activeRun.v1';
+
+export interface ActiveRunSave {
+  version: number;
+  gameMode: GameMode;
+  level: number;
+  jarsThisLevel: number;
+  jarFill: number;
+  jarValue: number;
+  jarGolden: boolean;
+  jarHue: number;
+  lungHealth: number;
+  score: number;
+  earnedThisRun: number;
+  combo: number;
+  bestCombo: number;
+  perfectChain: number;
+  chainTime: number;
+  selectedChar: number;
+  selectedTool: number;
+  inChallenge: boolean;
+  challengeMods: string[];
+  boostTimer: number;
+  wetTimer: number;
+  gustTimer: number;
+  regenBuff: number;
+  drags: number;
+  containersFilled: number;
+  goldenFilled: number;
+  fruitBought: number;
+  energyDrinksUsed: number;
+  timestamp: number;
+}
 
 const COMBO_MILESTONES = [
   { need: 5, reward: 18, label: 'FLAWLESS!', color: '#8ecae6' },
@@ -496,6 +621,11 @@ export class Game {
   private perfectChain = 0;
   private earnedThisRun = 0;
   private idleHealTimer = 0;
+  private gameMode: GameMode = 'classic';
+  private preferredMode: GameMode = 'classic';
+  private isPassiveRecovering = false;
+  private autoSaveTimer = 0;
+  public isOverlayOpen = false;
 
   // Persistent economy + meta
   private bank = 0;
@@ -590,6 +720,8 @@ export class Game {
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
 
     const prog = this.loadProgress();
+    this.preferredMode = prog.preferredMode && GAME_MODES[prog.preferredMode] ? prog.preferredMode : 'classic';
+    this.gameMode = this.preferredMode;
     this.unlockedChars = CHARACTERS.map((_, i) => prog.unlockedChars.includes(i));
     this.unlockedTools = TOOLS.map((_, i) => prog.unlockedTools.includes(i));
     this.selectedChar = Math.min(prog.selectedChar, CHARACTERS.length - 1);
@@ -625,6 +757,9 @@ export class Game {
     window.addEventListener('resize', this.resize);
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+    window.addEventListener('pagehide', this.onPageHide);
+    window.addEventListener('beforeunload', this.onPageHide);
     canvas.addEventListener('touchstart', this.onTouchStart, { passive: false });
     canvas.addEventListener('touchend', this.onTouchEnd);
     canvas.addEventListener('touchcancel', this.onTouchEnd);
@@ -638,6 +773,9 @@ export class Game {
     window.removeEventListener('resize', this.resize);
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    window.removeEventListener('pagehide', this.onPageHide);
+    window.removeEventListener('beforeunload', this.onPageHide);
     this.canvas.removeEventListener('touchstart', this.onTouchStart);
     this.canvas.removeEventListener('touchend', this.onTouchEnd);
     this.canvas.removeEventListener('touchcancel', this.onTouchEnd);
@@ -645,6 +783,23 @@ export class Game {
     this.canvas.removeEventListener('mouseup', this.onMouseUp);
     this.canvas.removeEventListener('mouseleave', this.onMouseUp);
   }
+
+  private onVisibilityChange = () => {
+    if (document.hidden) {
+      if (this.state === 'playing') {
+        this.pause();
+      }
+      this.saveActiveRun();
+      this.saveProgress();
+    }
+  };
+
+  private onPageHide = () => {
+    if (this.state === 'playing' || this.state === 'paused') {
+      this.saveActiveRun();
+      this.saveProgress();
+    }
+  };
 
   setAudio(a: AudioManager | null) {
     this.audio = a;
@@ -655,12 +810,15 @@ export class Game {
     if (e.repeat) return;
     if (e.code === 'Space' || e.code === 'KeyJ') {
       e.preventDefault();
-      if (this.state === 'playing' && !this.shopOpen) this.setSmoking(true);
+      if (this.state === 'playing' && !this.shopOpen && !this.isOverlayOpen) this.setSmoking(true);
     } else if (e.code === 'KeyR') {
       if (this.state === 'gameover') this.restart();
     } else if (e.code === 'Enter') {
-      if (this.state === 'menu') this.start();
-      else if (this.state === 'gameover') this.restart();
+      if (this.state === 'menu') {
+        if (!this.hasActiveRun()) this.start();
+      } else if (this.state === 'gameover') {
+        this.restart();
+      }
     }
   };
 
@@ -669,20 +827,22 @@ export class Game {
   };
 
   private onTouchStart = (e: TouchEvent) => {
-    e.preventDefault();
-    if (this.state === 'playing' && !this.shopOpen) this.setSmoking(true);
+    if (this.state === 'playing' && !this.shopOpen && !this.isOverlayOpen) {
+      e.preventDefault();
+      this.setSmoking(true);
+    }
   };
 
   private onTouchEnd = () => this.setSmoking(false);
 
   private onMouseDown = () => {
-    if (this.state === 'playing' && !this.shopOpen) this.setSmoking(true);
+    if (this.state === 'playing' && !this.shopOpen && !this.isOverlayOpen) this.setSmoking(true);
   };
 
   private onMouseUp = () => this.setSmoking(false);
 
   private setSmoking(v: boolean) {
-    if (this.shopOpen) v = false;
+    if (this.shopOpen || this.isOverlayOpen || this.state !== 'playing') v = false;
     if (this.smoking === v) return;
     this.smoking = v;
     if (v) {
@@ -696,8 +856,16 @@ export class Game {
   }
 
   // ---- Public API ----
-  start() {
+  start(mode?: GameMode) {
     if (this.state === 'playing') return;
+    if (mode && GAME_MODES[mode]) {
+      this.gameMode = mode;
+      this.preferredMode = mode;
+      this.saveProgress();
+    } else {
+      this.gameMode = this.preferredMode || 'classic';
+    }
+    this.clearActiveRun();
     this.resetGame();
     // Dynamic balancing: if the last run ended way below best, ease up quietly
     if (this.lastRunLevel > 0 && this.bestLevel >= 10 && this.lastRunLevel < Math.max(4, this.bestLevel - 8)) {
@@ -708,16 +876,32 @@ export class Game {
     this.earnPenalty = 1;
     this.state = 'playing';
     this.showLevelBanner();
+    this.saveActiveRun();
     this.onStateChange?.(this.state);
     this.emitStats();
     if (!this.running) this.loopStart();
     this.audio?.playSfx('click');
   }
 
+  continueRun(): boolean {
+    if (!this.hasActiveRun()) return false;
+    const ok = this.restoreActiveRun();
+    if (!ok) return false;
+    this.state = 'playing';
+    this.lastTime = performance.now();
+    this.showLevelBanner();
+    this.onStateChange?.(this.state);
+    this.emitStats();
+    if (!this.running) this.loopStart();
+    this.audio?.playSfx('click');
+    return true;
+  }
+
   pause() {
     if (this.state !== 'playing') return;
     this.state = 'paused';
-    this.audio?.setSmoking(false);
+    this.setSmoking(false);
+    this.saveActiveRun();
     this.onStateChange?.(this.state);
   }
 
@@ -729,20 +913,63 @@ export class Game {
   }
 
   restart() {
-    this.start();
+    this.clearActiveRun();
+    this.start(this.gameMode);
   }
 
   toMenu() {
     this.state = 'menu';
     this.smoking = false;
     this.shopOpen = false;
+    this.isOverlayOpen = false;
     this.challengeActive = false;
     this.challengeMods = [];
     this.fruitDrop = null;
     this.banner = null;
     this.audio?.setSmoking(false);
+    this.clearActiveRun();
     this.emitStats();
     this.onStateChange?.(this.state);
+  }
+
+  setGameMode(m: GameMode) {
+    if (GAME_MODES[m]) {
+      this.preferredMode = m;
+      if (this.state === 'menu') {
+        this.gameMode = m;
+      }
+      this.saveProgress();
+      this.emitStats();
+    }
+  }
+
+  getGameMode(): GameMode {
+    return this.gameMode;
+  }
+
+  getPreferredMode(): GameMode {
+    return this.preferredMode;
+  }
+
+  setOverlayOpen(v: boolean) {
+    this.isOverlayOpen = v;
+    if (v) this.setSmoking(false);
+  }
+
+  getModeDamageMult(): number {
+    return GAME_MODES[this.gameMode]?.damageMult ?? 1.0;
+  }
+
+  getModeEarnMult(): number {
+    return GAME_MODES[this.gameMode]?.earnMult ?? 1.0;
+  }
+
+  getModeFillSpeedMult(): number {
+    return GAME_MODES[this.gameMode]?.fillSpeedMult ?? 1.0;
+  }
+
+  getPassiveRecoveryRate(): number {
+    return 2.5 * (GAME_MODES[this.gameMode]?.recoveryRateMult ?? 1.0);
   }
 
   setShopOpen(v: boolean) {
@@ -939,6 +1166,7 @@ export class Game {
       });
     }
     this.saveProgress();
+    this.saveActiveRun();
     this.checkAchievements();
     this.completeJar();
     this.emitStats();
@@ -990,6 +1218,7 @@ export class Game {
     this.unlockedChars[i] = true;
     this.selectedChar = i;
     this.saveProgress();
+    this.saveActiveRun();
     this.celebrate(c.emoji + ' ' + c.name + ' HIRED!', 'x' + c.mult.toFixed(1) + ' PAY MULTIPLIER', '#ffd93d');
     this.checkAchievements();
     this.emitStats();
@@ -999,6 +1228,7 @@ export class Game {
     if (this.unlockedChars[i] && i !== this.selectedChar) {
       this.selectedChar = i;
       this.saveProgress();
+      this.saveActiveRun();
       this.addFloater(this.charX, this.charY - 90, CHARACTERS[i].name, '#ffd93d', 24);
       this.audio?.playSfx('click');
       this.emitStats();
@@ -1018,6 +1248,7 @@ export class Game {
     this.unlockedTools[i] = true;
     this.selectedTool = i;
     this.saveProgress();
+    this.saveActiveRun();
     this.celebrate(t.emoji + ' ' + t.name + ' ACQUIRED!', t.fill.toFixed(1) + 'x FILL SPEED', '#8ecae6');
     this.checkAchievements();
     this.emitStats();
@@ -1027,6 +1258,7 @@ export class Game {
     if (this.unlockedTools[i] && i !== this.selectedTool) {
       this.selectedTool = i;
       this.saveProgress();
+      this.saveActiveRun();
       this.addFloater(this.charX, this.charY - 90, TOOLS[i].name, '#8ecae6', 24);
       this.audio?.playSfx('click');
       this.emitStats();
@@ -1046,15 +1278,22 @@ export class Game {
       return;
     }
     this.bank -= f.cost;
-    const healMult = this.hasMod('weak') || this.hasMod('storm') ? 0.5 : 1;
-    const heal = Math.min(Math.round(f.heal * healMult), 100 - this.lungHealth);
-    this.lungHealth = Math.min(100, this.lungHealth + heal);
+    let heal = 0;
+    if (f.id === 'avocado') {
+      heal = 100 - this.lungHealth;
+      this.lungHealth = 100;
+    } else {
+      const healMult = this.hasMod('weak') || this.hasMod('storm') ? 0.5 : 1;
+      heal = Math.min(Math.round(f.heal * healMult), 100 - this.lungHealth);
+      this.lungHealth = Math.min(100, this.lungHealth + heal);
+    }
     this.fruitBought += 1;
     this.lifetimeFruit += 1;
     this.flash = 0.3;
     this.shakeIntensity = 4;
     this.audio?.playSfx('eat');
     this.saveProgress();
+    this.saveActiveRun();
 
     for (let i = 0; i < 12; i++) {
       const a = Math.random() * Math.PI * 2;
@@ -1066,7 +1305,7 @@ export class Game {
         rotSpeed: (Math.random() - 0.5) * 6, gravity: 220, drag: 0.98,
       });
     }
-    this.addFloater(this.charX, this.charY - 80, f.emoji + ' +' + heal + ' ❤', '#ff4d6d', 26);
+    this.addFloater(this.charX, this.charY - 80, f.emoji + ' +' + Math.round(heal) + ' ❤', '#ff4d6d', 26);
     this.checkAchievements();
     this.emitStats();
   }
@@ -1091,6 +1330,7 @@ export class Game {
     this.shakeIntensity = 4;
     this.audio?.playSfx('drink');
     this.saveProgress();
+    this.saveActiveRun();
 
     for (let i = 0; i < 14; i++) {
       const a = Math.random() * Math.PI * 2;
@@ -1122,6 +1362,7 @@ export class Game {
     this.drinkStock = Math.min(ENERGY_DRINK.maxStock, this.drinkStock + n);
     this.audio?.playSfx('click');
     this.saveProgress();
+    this.saveActiveRun();
     this.addFloater(this.width / 2, this.height * 0.3, '+' + n + ' ⚡ cans', '#5adcff', 24);
     this.emitStats();
   }
@@ -1247,6 +1488,12 @@ export class Game {
       smokeBlasters: this.smokeBlasters,
       lifetimeStars: this.lifetimeStars,
       lifetimeBlastersUsed: this.lifetimeBlastersUsed,
+      gameMode: this.gameMode,
+      isPassiveRecovering: this.isPassiveRecovering,
+      hasActiveRun: this.hasActiveRun(),
+      activeRunLevel: this.getActiveRunInfo()?.level,
+      activeRunScore: this.getActiveRunInfo()?.score,
+      activeRunMode: this.getActiveRunInfo()?.mode,
     };
   }
 
@@ -1273,6 +1520,7 @@ export class Game {
     this.hbTimer = 0;
     this.survivedLowHealth = false;
     this.idleHealTimer = 0;
+    this.isPassiveRecovering = false;
     this.nextJarX2 = false;
     this.boostTimer = 0;
     this.wetTimer = 0;
@@ -1291,8 +1539,8 @@ export class Game {
     this.banner = null;
     this.theme = THEMES[Math.floor(Math.random() * THEMES.length)];
     this.jar = this.spawnJar();
-    this.jar.x = this.width * 0.72;
-    this.jar.y = this.height * 0.62;
+    this.jar.x = this.width * (this.width < 500 ? 0.76 : 0.72);
+    this.jar.y = this.height * (this.width < 500 ? 0.53 : 0.62);
     this.lastTime = performance.now();
   }
 
@@ -1304,6 +1552,7 @@ export class Game {
       lifetimeGold: 0, lifetimeChallenges: 0, lifetimeMilestones: 0,
       lastRunLevel: 0, bestComboEver: 1,
       goldenStars: 0, smokeBlasters: 0, lifetimeStars: 0, lifetimeBlastersUsed: 0,
+      preferredMode: 'classic',
       fresh: true,
     };
     try {
@@ -1333,6 +1582,7 @@ export class Game {
         smokeBlasters: typeof p.smokeBlasters === 'number' ? p.smokeBlasters : 0,
         lifetimeStars: typeof p.lifetimeStars === 'number' ? p.lifetimeStars : 0,
         lifetimeBlastersUsed: typeof p.lifetimeBlastersUsed === 'number' ? p.lifetimeBlastersUsed : 0,
+        preferredMode: p.preferredMode && GAME_MODES[p.preferredMode] ? p.preferredMode : 'classic',
         fresh: false,
       };
     } catch {
@@ -1365,10 +1615,146 @@ export class Game {
         smokeBlasters: this.smokeBlasters,
         lifetimeStars: this.lifetimeStars,
         lifetimeBlastersUsed: this.lifetimeBlastersUsed,
+        preferredMode: this.preferredMode,
       };
       localStorage.setItem(LS_KEY, JSON.stringify(p));
     } catch {
       // ignore
+    }
+  }
+
+  hasActiveRun(): boolean {
+    try {
+      const raw = localStorage.getItem(ACTIVE_RUN_KEY);
+      if (!raw) return false;
+      const data = JSON.parse(raw) as Partial<ActiveRunSave>;
+      return Boolean(data && typeof data.level === 'number' && data.lungHealth && data.lungHealth > 0);
+    } catch {
+      return false;
+    }
+  }
+
+  getActiveRunInfo(): { level: number; score: number; mode: GameMode; charIndex: number } | null {
+    try {
+      const raw = localStorage.getItem(ACTIVE_RUN_KEY);
+      if (!raw) return null;
+      const data = JSON.parse(raw) as Partial<ActiveRunSave>;
+      if (!data || typeof data.level !== 'number' || (data.lungHealth ?? 0) <= 0) return null;
+      return {
+        level: data.level,
+        score: data.score ?? 0,
+        mode: data.gameMode && GAME_MODES[data.gameMode] ? data.gameMode : 'classic',
+        charIndex: data.selectedChar ?? this.selectedChar,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  saveActiveRun() {
+    if (this.state !== 'playing' && this.state !== 'paused') return;
+    if (this.lungHealth <= 0) {
+      this.clearActiveRun();
+      return;
+    }
+    try {
+      const data: ActiveRunSave = {
+        version: 1,
+        gameMode: this.gameMode,
+        level: this.level,
+        jarsThisLevel: this.jarsThisLevel,
+        jarFill: this.jar ? this.jar.fill : 0,
+        jarValue: this.jar ? this.jar.value : 14,
+        jarGolden: this.jar ? this.jar.golden : false,
+        jarHue: this.jar ? this.jar.hue : 200,
+        lungHealth: this.lungHealth,
+        score: this.score,
+        earnedThisRun: this.earnedThisRun,
+        combo: this.combo,
+        bestCombo: this.bestCombo,
+        perfectChain: this.perfectChain,
+        chainTime: this.chainTime,
+        selectedChar: this.selectedChar,
+        selectedTool: this.selectedTool,
+        inChallenge: this.challengeActive,
+        challengeMods: this.challengeMods,
+        boostTimer: this.boostTimer,
+        wetTimer: this.wetTimer,
+        gustTimer: this.gustTimer,
+        regenBuff: this.regenBuff,
+        drags: this.drags,
+        containersFilled: this.containersFilled,
+        goldenFilled: this.goldenFilled,
+        fruitBought: this.fruitBought,
+        energyDrinksUsed: this.energyDrinksUsed,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem(ACTIVE_RUN_KEY, JSON.stringify(data));
+    } catch {
+      // ignore
+    }
+  }
+
+  clearActiveRun() {
+    try {
+      localStorage.removeItem(ACTIVE_RUN_KEY);
+    } catch {
+      // ignore
+    }
+  }
+
+  restoreActiveRun(): boolean {
+    try {
+      const raw = localStorage.getItem(ACTIVE_RUN_KEY);
+      if (!raw) return false;
+      const data = JSON.parse(raw) as Partial<ActiveRunSave>;
+      if (!data || typeof data.level !== 'number' || (data.lungHealth ?? 0) <= 0) {
+        return false;
+      }
+      this.gameMode = data.gameMode && GAME_MODES[data.gameMode] ? data.gameMode : 'classic';
+      this.level = Math.max(1, data.level);
+      this.jarsThisLevel = Math.max(0, data.jarsThisLevel ?? 0);
+      this.lungHealth = Math.max(1, Math.min(100, data.lungHealth ?? 100));
+      this.score = Math.max(0, data.score ?? 0);
+      this.earnedThisRun = Math.max(0, data.earnedThisRun ?? 0);
+      this.combo = Math.max(1, data.combo ?? 1);
+      this.bestCombo = Math.max(1, data.bestCombo ?? this.combo);
+      this.perfectChain = Math.max(0, data.perfectChain ?? 0);
+      this.chainTime = Math.max(0, data.chainTime ?? 0);
+      if (typeof data.selectedChar === 'number' && this.unlockedChars[data.selectedChar]) {
+        this.selectedChar = data.selectedChar;
+      }
+      if (typeof data.selectedTool === 'number' && this.unlockedTools[data.selectedTool]) {
+        this.selectedTool = data.selectedTool;
+      }
+      this.challengeActive = Boolean(data.inChallenge);
+      this.challengeMods = Array.isArray(data.challengeMods) ? data.challengeMods : [];
+      this.boostTimer = Math.max(0, data.boostTimer ?? 0);
+      this.wetTimer = Math.max(0, data.wetTimer ?? 0);
+      this.gustTimer = Math.max(0, data.gustTimer ?? 0);
+      this.regenBuff = Math.max(0, data.regenBuff ?? 0);
+      this.drags = Math.max(0, data.drags ?? 0);
+      this.containersFilled = Math.max(0, data.containersFilled ?? 0);
+      this.goldenFilled = Math.max(0, data.goldenFilled ?? 0);
+      this.fruitBought = Math.max(0, data.fruitBought ?? 0);
+      this.energyDrinksUsed = Math.max(0, data.energyDrinksUsed ?? 0);
+
+      this.jar = this.spawnJar();
+      if (typeof data.jarFill === 'number') this.jar.fill = Math.max(0, Math.min(0.99, data.jarFill));
+      if (typeof data.jarValue === 'number' && data.jarValue > 0) this.jar.value = data.jarValue;
+      if (typeof data.jarGolden === 'boolean') this.jar.golden = data.jarGolden;
+      if (typeof data.jarHue === 'number') this.jar.hue = data.jarHue;
+      this.jar.x = this.width * (this.width < 500 ? 0.76 : 0.72);
+      this.jar.y = this.height * (this.width < 500 ? 0.53 : 0.62);
+
+      this.idleHealTimer = 0;
+      this.isPassiveRecovering = false;
+      this.smoking = false;
+      this.shopOpen = false;
+      this.lastTime = performance.now();
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -1379,10 +1765,10 @@ export class Game {
     this.canvas.width = Math.floor(rect.width * this.dpr);
     this.canvas.height = Math.floor(rect.height * this.dpr);
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    this.charX = this.width * 0.18;
-    this.charY = this.height * 0.62;
-    this.jar.x = this.width * 0.72;
-    this.jar.y = this.height * 0.62;
+    this.charX = this.width * (this.width < 500 ? 0.22 : 0.18);
+    this.charY = this.height * (this.width < 500 ? 0.53 : 0.62);
+    this.jar.x = this.width * (this.width < 500 ? 0.76 : 0.72);
+    this.jar.y = this.height * (this.width < 500 ? 0.53 : 0.62);
   };
 
   private barY() {
@@ -1441,6 +1827,7 @@ export class Game {
 
   private update(dt: number, ambientOnly: boolean) {
     if (ambientOnly) {
+      this.isPassiveRecovering = false;
       this.updateParticles(dt);
       this.updateFloaters(dt);
       this.updateEffects(dt);
@@ -1448,6 +1835,13 @@ export class Game {
       this.spawnRain();
       this.spawnFog();
       return;
+    }
+
+    // Periodic auto-save active run
+    this.autoSaveTimer += dt;
+    if (this.autoSaveTimer >= 3.0) {
+      this.autoSaveTimer = 0;
+      this.saveActiveRun();
     }
 
     const tool = TOOLS[this.selectedTool];
@@ -1476,8 +1870,10 @@ export class Game {
 
     if (this.smoking) {
       this.idleHealTimer = 0;
+      this.isPassiveRecovering = false;
       const d = this.diff(this.level);
-      let drainRate = tool.drain * d.drain * this.balanceEase;
+      // Tool damage with exact -10% global reduction and mode multiplier applied
+      let drainRate = (tool.drain * GLOBAL_TOOL_DAMAGE_MULT) * d.drain * this.balanceEase * this.getModeDamageMult();
       if (this.hasMod('flu')) drainRate *= 1.3;
       if (this.hasMod('burn')) drainRate *= 1.5;
       if (this.hasMod('blackout')) drainRate *= 1.15;
@@ -1491,7 +1887,7 @@ export class Game {
         this.smokeEmitTimer -= interval;
         this.emitSmokePuff(tool);
       }
-      let fillSpeed = 0.46 * tool.fill / this.effFillReq();
+      let fillSpeed = (0.46 * tool.fill / this.effFillReq()) * this.getModeFillSpeedMult();
       if (this.hasMod('dud')) fillSpeed *= 0.6;
       if (this.hasMod('thin')) fillSpeed *= 0.75;
       if (this.hasMod('choke')) fillSpeed *= 0.75;
@@ -1539,10 +1935,24 @@ export class Game {
         if (this.combo < 1.5) this.perfectChain = 0;
       }
       this.coughTime = 0;
-      // Slow passive regen after ~2s idle — fruits/drinks stay primary heals
-      this.idleHealTimer += dt;
-      if (this.idleHealTimer >= 2 && this.lungHealth < 100) {
-        this.lungHealth = Math.min(100, this.lungHealth + 0.4 * dt);
+
+      // Automatic lung recovery:
+      // Begins after continuously not smoking for 1.0s.
+      // Must stop when lung health reaches 80% (never increases above 80%).
+      // If health is already 80% or higher, passive recovery does not begin.
+      if (this.lungHealth < 80) {
+        this.idleHealTimer += dt;
+        if (this.idleHealTimer >= 1.0) {
+          this.isPassiveRecovering = true;
+          this.lungHealth = Math.min(80, this.lungHealth + this.getPassiveRecoveryRate() * dt);
+          if (this.lungHealth >= 80) {
+            this.isPassiveRecovering = false;
+          }
+        } else {
+          this.isPassiveRecovering = false;
+        }
+      } else {
+        this.isPassiveRecovering = false;
       }
     }
 
@@ -1749,8 +2159,9 @@ export class Game {
     const golden = this.jar.golden;
     const x2 = this.jar.hue === 275;
     const toolEarn = TOOLS[this.selectedTool].earn;
-    let reward = Math.round(this.jar.value * this.charMult * toolEarn * this.combo * this.earnPenalty);
-    if (this.hasMod('tax')) reward = Math.round(reward * 0.75);
+    let rawReward = this.jar.value * this.charMult * toolEarn * this.combo * this.earnPenalty * GLOBAL_EARNINGS_MULT * this.getModeEarnMult();
+    if (this.hasMod('tax')) rawReward *= 0.75;
+    const reward = Math.round(rawReward);
     this.bank += reward;
     this.score += reward;
     this.earnedThisRun += reward;
@@ -1857,6 +2268,7 @@ export class Game {
     }
 
     this.saveProgress();
+    this.saveActiveRun();
     this.checkAchievements();
     this.nextJar();
     this.emitStats();
@@ -1877,11 +2289,10 @@ export class Game {
   private rollBonusFruit(): FruitDef {
     const r = Math.random() * 100;
     if (r < 45) return FRUITS[0]; // apple
-    if (r < 80) return FRUITS[1]; // orange
-    if (r < 92) return FRUITS[2]; // blueberry
+    if (r < 75) return FRUITS[1]; // orange
+    if (r < 90) return FRUITS[2]; // blueberry
     if (r < 97) return FRUITS[3]; // guava
-    if (r < 99.5) return FRUITS[4]; // avocado
-    return FRUITS[5]; // pineapple
+    return FRUITS[4]; // avocado (100% full heal)
   }
 
   private spawnFruitDrop() {
@@ -1895,7 +2306,7 @@ export class Game {
       maxLife: 8,
     };
     this.lastFruitDropAt = this.containersFilled;
-    this.addFloater(this.jar.x, this.barY() - 70, fruit.emoji + ' Bonus!', '#ffd93d', 20);
+    this.addFloater(this.jar.x, this.barY() - 70, fruit.name.toUpperCase() + ' BONUS!', '#ffd93d', 18);
     this.audio?.playSfx('event');
   }
 
@@ -1907,12 +2318,12 @@ export class Game {
     if (heal > 0) {
       this.lungHealth += heal;
       this.audio?.playSfx('eat');
-      this.addFloater(fd.x, fd.y - 30, fd.fruit.emoji + ' +' + Math.round(heal) + ' ❤', '#ff4d6d', 26);
+      this.addFloater(fd.x, fd.y - 30, '+' + Math.round(heal) + ' HP', '#ff4d6d', 24);
     } else {
       this.bank += 25;
       this.score += 25;
       this.audio?.playSfx('coin');
-      this.addFloater(fd.x, fd.y - 30, fd.fruit.emoji + ' +$25', '#ffd93d', 26);
+      this.addFloater(fd.x, fd.y - 30, '+$25 BONUS', '#ffd93d', 24);
     }
     this.fruitDrops += 1;
     for (let i = 0; i < 14; i++) {
@@ -1994,7 +2405,7 @@ export class Game {
           } else {
             const heal = Math.min(30, 100 - this.lungHealth);
             this.lungHealth += heal;
-            announce('MYSTERY REWARD!', '+' + Math.round(heal) + ' ❤', '#ff6ec7', cx, cy);
+            announce('MYSTERY REWARD!', '+' + Math.round(heal) + ' HP', '#ff6ec7', cx, cy);
           }
           break;
         }
@@ -2117,6 +2528,8 @@ export class Game {
       });
     }
     this.maybeRollEvents();
+    this.saveProgress();
+    this.saveActiveRun();
     this.checkAchievements();
     this.emitStats();
   }
@@ -2138,6 +2551,7 @@ export class Game {
   private gameOver() {
     this.state = 'gameover';
     this.smoking = false;
+    this.isPassiveRecovering = false;
     this.lastRunLevel = this.level;
     this.audio?.setSmoking(false);
     this.audio?.playSfx('gameover');
@@ -2145,6 +2559,7 @@ export class Game {
     this.scores.sort((a, b) => b - a);
     this.scores = this.scores.slice(0, 5);
     if (this.score > this.highScore) this.highScore = this.score;
+    this.clearActiveRun();
     this.saveProgress();
     this.checkAchievements();
     this.shakeIntensity = 22;
@@ -2277,10 +2692,30 @@ export class Game {
     ctx.arc(x, y, 36, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.font = '34px system-ui';
+    const fruitColors: Record<string, { bg: string; stroke: string; label: string }> = {
+      apple: { bg: '#ef4444', stroke: '#fca5a5', label: '+18' },
+      orange: { bg: '#f97316', stroke: '#fdba74', label: '+30' },
+      blueberry: { bg: '#3b82f6', stroke: '#93c5fd', label: '+50' },
+      guava: { bg: '#10b981', stroke: '#6ee7b7', label: '+72' },
+      avocado: { bg: '#84cc16', stroke: '#bef264', label: '100%' },
+    };
+    const fc = fruitColors[fd.fruit.icon] || { bg: '#10b981', stroke: '#6ee7b7', label: '+HP' };
+
+    ctx.save();
+    ctx.fillStyle = fc.bg;
+    ctx.strokeStyle = fc.stroke;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, 22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = 'bold 12px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(fd.fruit.emoji, x, y);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(fc.label, x, y);
+    ctx.restore();
 
     ctx.strokeStyle = 'rgba(255,255,255,0.55)';
     ctx.lineWidth = 3;
@@ -2301,21 +2736,24 @@ export class Game {
     const alpha = t > 0.78 ? 1 - (t - 0.78) / 0.22 : 1;
     ctx.save();
     ctx.globalAlpha = Math.max(0, alpha);
-    ctx.translate(this.width / 2, this.height * 0.3);
+    const bannerY = Math.max(75, Math.min(this.height * 0.19, 130));
+    ctx.translate(this.width / 2, bannerY);
     ctx.scale(scale, scale);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = '900 50px system-ui, sans-serif';
-    ctx.lineWidth = 10;
+    const titleSize = Math.max(20, Math.min(34, this.width * 0.07));
+    const subSize = Math.max(13, Math.min(17, this.width * 0.04));
+    ctx.font = `900 ${titleSize}px system-ui, sans-serif`;
+    ctx.lineWidth = 6;
     ctx.strokeStyle = 'rgba(0,0,0,0.85)';
     ctx.strokeText(b.title, 0, 0);
     ctx.fillStyle = b.color;
     ctx.fillText(b.title, 0, 0);
-    ctx.font = 'bold 20px system-ui, sans-serif';
-    ctx.lineWidth = 6;
-    ctx.strokeText(b.sub, 0, 42);
+    ctx.font = `bold ${subSize}px system-ui, sans-serif`;
+    ctx.lineWidth = 4;
+    ctx.strokeText(b.sub, 0, titleSize * 0.85);
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(b.sub, 0, 42);
+    ctx.fillText(b.sub, 0, titleSize * 0.85);
     ctx.restore();
   }
 
@@ -2945,18 +3383,23 @@ export class Game {
       ctx.font = 'bold 14px system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(
-        (gold ? '⭐$' : x2 ? '2X$' : '$') +
-          Math.round(j.value * this.charMult * TOOLS[this.selectedTool].earn),
+        (gold ? 'GOLD $' : x2 ? '2X $' : '$') +
+          Math.round(j.value * this.charMult * TOOLS[this.selectedTool].earn * GLOBAL_EARNINGS_MULT * this.getModeEarnMult()),
         0,
         -h / 2 - 20
       );
     }
 
     if (gold || x2) {
-      ctx.fillStyle = gold ? '#ffd700' : '#c77dff';
-      ctx.font = '18px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(gold ? '⭐' : '2X', 0, -h / 2 - 40);
+      if (gold) {
+        ctx.fillStyle = '#ffd700';
+        drawStar(ctx, 0, -h / 2 - 38, 9, 5);
+      } else {
+        ctx.fillStyle = '#c77dff';
+        ctx.font = 'bold 16px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('2X', 0, -h / 2 - 38);
+      }
     }
 
     ctx.restore();
