@@ -18,8 +18,10 @@ import {
   type FruitDef,
   type AchievementDef,
   type GameMode,
+  type ActionFeedback,
 } from './game/Game';
 import { AudioManager } from './game/Audio';
+import { NavigationManager, type OverlayId } from './game/Navigation';
 import {
   PlayIcon,
   PauseIcon,
@@ -103,6 +105,8 @@ export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameRef = useRef<Game | null>(null);
   const audioRef = useRef<AudioManager | null>(null);
+  const navRef = useRef(new NavigationManager());
+
   const [state, setState] = useState<GameState>('menu');
   const [stats, setStats] = useState<GameStats>(defaultStats);
   const [showTutorial, setShowTutorial] = useState(true);
@@ -129,8 +133,80 @@ export default function App() {
   const [inputCode, setInputCode] = useState('');
   const [cloudMsg, setCloudMsg] = useState('');
   const [toast, setToast] = useState<{ ach: AchievementDef; key: number } | null>(null);
+  const [feedbackToast, setFeedbackToast] = useState<{ message: string; success: boolean; key: number } | null>(null);
+
   const shopOpenRef = useRef(false);
   shopOpenRef.current = shopOpen;
+
+  const openOverlay = (id: OverlayId, customTab?: ShopTab) => {
+    if (id === 'shop') {
+      setShopTab(customTab ?? shopTab);
+      setShopOpen(true);
+      gameRef.current?.setShopOpen(true);
+    } else if (id === 'levels') {
+      setShowLevels(true);
+    } else if (id === 'settings') {
+      setShowSettings(true);
+    } else if (id === 'help') {
+      setShowHelp(true);
+    } else if (id === 'achievements') {
+      setShowAch(true);
+    } else if (id === 'cloud') {
+      setShowCloud(true);
+    }
+    navRef.current.push(id);
+    gameRef.current?.setOverlayOpen(true);
+  };
+
+  const closeOverlay = (id: OverlayId) => {
+    navRef.current.close(id);
+    if (id === 'shop') {
+      setShopOpen(false);
+      gameRef.current?.setShopOpen(false);
+    } else if (id === 'levels') {
+      setShowLevels(false);
+    } else if (id === 'settings') {
+      setShowSettings(false);
+    } else if (id === 'help') {
+      setShowHelp(false);
+    } else if (id === 'achievements') {
+      setShowAch(false);
+    } else if (id === 'cloud') {
+      setShowCloud(false);
+      setCloudMsg('');
+    } else if (id === 'confirm') {
+      setConfirmModal(null);
+    }
+
+    if (navRef.current.getStack().length === 0) {
+      gameRef.current?.setOverlayOpen(false);
+    }
+  };
+
+  const openShop = (tab?: ShopTab) => openOverlay('shop', tab);
+  const closeShop = () => closeOverlay('shop');
+
+  const popTopOverlay = (): boolean => {
+    const top = navRef.current.getTop();
+    if (top) {
+      closeOverlay(top);
+      return true;
+    }
+    return false;
+  };
+
+  const triggerConfirm = (modal: {
+    title: string;
+    message: string;
+    confirmText: string;
+    cancelText?: string;
+    isDestructive?: boolean;
+    onConfirm: () => void;
+  }) => {
+    setConfirmModal(modal);
+    navRef.current.push('confirm');
+    gameRef.current?.setOverlayOpen(true);
+  };
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -149,16 +225,25 @@ export default function App() {
     g.onToast = (ach) => {
       setToast({ ach, key: Date.now() });
     };
+    g.onFeedback = (fb: ActionFeedback) => {
+      setFeedbackToast({ message: fb.message, success: fb.success, key: Date.now() });
+    };
     setStats(g.getStats());
     return () => g.destroy();
   }, []);
 
-  // Auto-dismiss achievement toast
+  // Auto-dismiss toasts
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 3600);
     return () => clearTimeout(t);
   }, [toast]);
+
+  useEffect(() => {
+    if (!feedbackToast) return;
+    const t = setTimeout(() => setFeedbackToast(null), 2500);
+    return () => clearTimeout(t);
+  }, [feedbackToast]);
 
   // Audio unlock + music start on first gesture
   useEffect(() => {
@@ -173,32 +258,50 @@ export default function App() {
     };
   }, []);
 
-  // Keyboard
+  // Hardware/Android back button support
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      e.preventDefault();
+      const popped = popTopOverlay();
+      if (!popped && gameRef.current?.getState() === 'playing') {
+        gameRef.current.pause();
+      }
+      window.history.pushState(null, '', window.location.href);
+    };
+    window.history.pushState(null, '', window.location.href);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Keyboard controls
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat) return;
       const g = gameRef.current;
       if (!g) return;
       const st = g.getState();
-      if (e.code === 'Digit1') st === 'playing' && !shopOpenRef.current && g.eatFruit(0);
-      else if (e.code === 'Digit2') st === 'playing' && !shopOpenRef.current && g.eatFruit(1);
-      else if (e.code === 'Digit3') st === 'playing' && !shopOpenRef.current && g.eatFruit(2);
-      else if (e.code === 'Digit4') st === 'playing' && !shopOpenRef.current && g.eatFruit(3);
-      else if (e.code === 'Digit5') st === 'playing' && !shopOpenRef.current && g.eatFruit(4);
-      else if (e.code === 'KeyE') st === 'playing' && !shopOpenRef.current && g.drinkEnergy();
-      else if (e.code === 'KeyB') st === 'playing' && !shopOpenRef.current && g.useBlaster();
+      const hasAnyOverlay = navRef.current.getStack().length > 0;
+
+      if (e.code === 'Digit1') (st === 'playing' || st === 'paused') && g.eatFruit(0);
+      else if (e.code === 'Digit2') (st === 'playing' || st === 'paused') && g.eatFruit(1);
+      else if (e.code === 'Digit3') (st === 'playing' || st === 'paused') && g.eatFruit(2);
+      else if (e.code === 'Digit4') (st === 'playing' || st === 'paused') && g.eatFruit(3);
+      else if (e.code === 'Digit5') (st === 'playing' || st === 'paused') && g.eatFruit(4);
+      else if (e.code === 'KeyE') (st === 'playing' || st === 'paused') && g.drinkEnergy();
+      else if (e.code === 'KeyB') (st === 'playing' || st === 'paused') && g.useBlaster();
       else if (e.code === 'KeyS') {
-        if (st === 'playing' || st === 'menu') {
-          if (shopOpenRef.current) closeShop();
-          else openShop();
-        }
+        if (shopOpenRef.current) closeOverlay('shop');
+        else openOverlay('shop');
       } else if (e.code === 'Escape') {
-        if (shopOpenRef.current) closeShop();
-        else if (st === 'playing') g.pause();
-        else if (st === 'paused') g.resume();
+        e.preventDefault();
+        const popped = popTopOverlay();
+        if (!popped) {
+          if (st === 'playing') g.pause();
+          else if (st === 'paused') g.resume();
+        }
       } else if (e.code === 'KeyP') {
-        if (st === 'playing' && !shopOpenRef.current) g.pause();
-        else if (st === 'paused') g.resume();
+        if (st === 'playing' && !hasAnyOverlay) g.pause();
+        else if (st === 'paused' && !hasAnyOverlay) g.resume();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -212,16 +315,6 @@ export default function App() {
       return () => clearTimeout(t);
     }
   }, [state, showTutorial]);
-
-  const openShop = (tab?: ShopTab) => {
-    setShopTab(tab ?? shopTab);
-    setShopOpen(true);
-    gameRef.current?.setShopOpen(true);
-  };
-  const closeShop = () => {
-    setShopOpen(false);
-    gameRef.current?.setShopOpen(false);
-  };
 
   const toggleMusic = () => {
     const a = audioRef.current;
@@ -288,24 +381,45 @@ export default function App() {
       {toast && (
         <div
           key={toast.key}
-          className="pointer-events-none absolute inset-x-0 top-16 z-40 flex justify-center"
+          className="pointer-events-none absolute inset-x-0 top-16 z-50 flex justify-center px-4"
         >
-          <div className="ach-toast flex items-center gap-3 rounded-2xl border border-amber-400/50 bg-gradient-to-r from-amber-500/25 to-pink-500/25 px-5 py-3 shadow-[0_0_30px_rgba(251,191,36,0.45)] backdrop-blur-md">
-            <span className="text-3xl">{toast.ach.emoji}</span>
+          <div className="ach-toast flex items-center gap-3 rounded-2xl border border-amber-400/50 bg-gradient-to-r from-amber-500/30 to-pink-500/30 px-5 py-3 shadow-[0_0_30px_rgba(251,191,36,0.45)] backdrop-blur-md">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-400/20 border border-amber-400/40">
+              <AchievementIconRenderer icon={toast.ach.icon} className="w-6 h-6 text-amber-300" />
+            </div>
             <div>
               <div className="text-[10px] font-black uppercase tracking-widest text-amber-300">
                 Achievement Unlocked!
               </div>
               <div className="text-base font-black">{toast.ach.name}</div>
-              <div className="text-[11px] text-white/60">{toast.ach.desc}</div>
+              <div className="text-[11px] text-white/70">{toast.ach.desc}</div>
               {(toast.ach.stars || toast.ach.blasters) && (
                 <div className="mt-0.5 text-[11px] font-black text-amber-200">
-                  {toast.ach.stars ? `+${toast.ach.stars}⭐` : ''}
+                  {toast.ach.stars ? `+${toast.ach.stars} Stars` : ''}
                   {toast.ach.stars && toast.ach.blasters ? '  ·  ' : ''}
-                  {toast.ach.blasters ? `+${toast.ach.blasters}💥 Blaster` : ''}
+                  {toast.ach.blasters ? `+${toast.ach.blasters} Blaster` : ''}
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Action / Purchase Feedback Toast */}
+      {feedbackToast && (
+        <div
+          key={feedbackToast.key}
+          className="pointer-events-none absolute inset-x-0 bottom-24 z-50 flex justify-center px-4"
+        >
+          <div
+            className={`flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-xs sm:text-sm font-black shadow-2xl backdrop-blur-md transition-all ${
+              feedbackToast.success
+                ? 'border-emerald-400/60 bg-emerald-950/90 text-emerald-200 shadow-emerald-500/25'
+                : 'border-rose-400/60 bg-rose-950/90 text-rose-200 shadow-rose-500/25'
+            }`}
+          >
+            <span className="text-base">{feedbackToast.success ? '✓' : '⚠'}</span>
+            <span>{feedbackToast.message}</span>
           </div>
         </div>
       )}
@@ -854,28 +968,6 @@ export default function App() {
               </p>
             </div>
 
-            {/* Active Run Banner (if active) */}
-            {stats.hasActiveRun && (
-              <div className="rounded-2xl border border-emerald-400/40 bg-gradient-to-r from-emerald-500/20 to-teal-500/15 p-2.5 shadow-[0_0_18px_rgba(52,211,153,0.25)] text-left">
-                <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-wider text-emerald-300">
-                  <span className="flex items-center gap-1">
-                    <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
-                    Active Run: Lv {stats.activeRunLevel || stats.level}
-                  </span>
-                  <span className="tabular-nums text-amber-300">
-                    ${(stats.activeRunScore || stats.score).toLocaleString()}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => gameRef.current?.continueRun()}
-                  className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 py-2 text-xs font-black uppercase tracking-wider text-slate-950 shadow-md shadow-emerald-500/30 transition hover:brightness-110 active:scale-95"
-                >
-                  <PlayIcon className="w-3.5 h-3.5" /> Continue Run
-                </button>
-              </div>
-            )}
-
             {/* Game Mode Selector */}
             <div className="rounded-2xl border border-white/10 bg-black/40 p-2 text-left">
               <div className="mb-1 flex items-center justify-between">
@@ -921,31 +1013,48 @@ export default function App() {
               </div>
             </div>
 
-            {/* Main Action Button */}
-            <button
-              type="button"
-              onClick={() => {
-                if (stats.hasActiveRun) {
-                  setConfirmModal({
-                    title: 'Start New Game?',
-                    message: `You have an active run in progress at Level ${stats.activeRunLevel || stats.level} with $${(stats.activeRunScore || stats.score).toLocaleString()}. Starting a new run will discard it. Bank cash and lifetime unlocks are permanently saved.`,
-                    confirmText: 'Start New Run',
-                    cancelText: 'Keep Saved Run',
-                    isDestructive: true,
-                    onConfirm: () => {
-                      setConfirmModal(null);
-                      gameRef.current?.start(selectedMode);
-                    },
-                  });
-                } else {
-                  gameRef.current?.start(selectedMode);
-                }
-              }}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 via-pink-500 to-purple-500 py-3 text-sm font-black uppercase tracking-wider text-slate-950 shadow-lg shadow-pink-500/30 transition hover:brightness-110 active:scale-[0.98]"
-            >
-              <PlayIcon className="w-4 h-4" />
-              <span>New Run ({GAME_MODES[selectedMode]?.name})</span>
-            </button>
+            {/* Main Action Buttons */}
+            {stats.hasActiveRun ? (
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => gameRef.current?.continueRun()}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 py-3 text-sm font-black uppercase tracking-wider text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:brightness-110 active:scale-[0.98]"
+                >
+                  <PlayIcon className="w-4 h-4" />
+                  <span>Continue Run (Lv {stats.activeRunLevel || stats.level} · ${(stats.activeRunScore || stats.score).toLocaleString()})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    triggerConfirm({
+                      title: 'Start New Run?',
+                      message: `You have an active run in progress at Level ${stats.activeRunLevel || stats.level} ($${(stats.activeRunScore || stats.score).toLocaleString()}). Starting a new run will overwrite it. Your banked cash and achievements are kept permanently.`,
+                      confirmText: 'Start New Run',
+                      cancelText: 'Keep Saved Run',
+                      isDestructive: true,
+                      onConfirm: () => {
+                        closeOverlay('confirm');
+                        gameRef.current?.start(selectedMode);
+                      },
+                    })
+                  }
+                  className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/5 py-2 text-xs font-bold uppercase tracking-wider text-white/70 transition hover:bg-white/10 active:scale-95"
+                >
+                  <RotateCcwIcon className="w-3.5 h-3.5 text-white/60" />
+                  <span>Start New Run ({GAME_MODES[selectedMode]?.name})</span>
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => gameRef.current?.start(selectedMode)}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 via-pink-500 to-purple-500 py-3 text-sm font-black uppercase tracking-wider text-slate-950 shadow-lg shadow-pink-500/30 transition hover:brightness-110 active:scale-[0.98]"
+              >
+                <PlayIcon className="w-4 h-4" />
+                <span>Start Run ({GAME_MODES[selectedMode]?.name})</span>
+              </button>
+            )}
 
             {/* Quick Metrics (Single 3-item row) */}
             <div className="grid grid-cols-3 gap-1.5 text-center text-xs">
@@ -982,7 +1091,7 @@ export default function App() {
             <div className="grid grid-cols-3 gap-1 sm:gap-1.5 text-xs">
               <button
                 type="button"
-                onClick={() => openShop()}
+                onClick={() => openOverlay('shop')}
                 className="flex items-center justify-center gap-1 rounded-xl border border-amber-400/30 bg-amber-500/10 py-2 px-1 text-[11px] font-bold text-amber-200 transition hover:bg-amber-500/20 active:scale-95"
               >
                 <ShopIcon className="w-3.5 h-3.5 text-amber-300" />
@@ -990,7 +1099,7 @@ export default function App() {
               </button>
               <button
                 type="button"
-                onClick={() => setShowLevels(true)}
+                onClick={() => openOverlay('levels')}
                 className="flex items-center justify-center gap-1 rounded-xl border border-purple-400/30 bg-purple-500/10 py-2 px-1 text-[11px] font-bold text-purple-200 transition hover:bg-purple-500/20 active:scale-95"
               >
                 <LevelIcon className="w-3.5 h-3.5 text-purple-300" />
@@ -998,7 +1107,7 @@ export default function App() {
               </button>
               <button
                 type="button"
-                onClick={() => setShowAch(true)}
+                onClick={() => openOverlay('achievements')}
                 className="flex items-center justify-center gap-1 rounded-xl border border-pink-400/30 bg-pink-500/10 py-2 px-1 text-[11px] font-bold text-pink-200 transition hover:bg-pink-500/20 active:scale-95"
               >
                 <AwardIcon className="w-3.5 h-3.5 text-pink-300" />
@@ -1006,7 +1115,7 @@ export default function App() {
               </button>
               <button
                 type="button"
-                onClick={() => setShowCloud(true)}
+                onClick={() => openOverlay('cloud')}
                 className="flex items-center justify-center gap-1 rounded-xl border border-sky-400/30 bg-sky-500/10 py-2 px-1 text-[11px] font-bold text-sky-200 transition hover:bg-sky-500/20 active:scale-95"
               >
                 <CloudIcon className="w-3.5 h-3.5 text-sky-300" />
@@ -1014,7 +1123,7 @@ export default function App() {
               </button>
               <button
                 type="button"
-                onClick={() => setShowSettings(true)}
+                onClick={() => openOverlay('settings')}
                 className="flex items-center justify-center gap-1 rounded-xl border border-slate-400/30 bg-slate-500/10 py-2 px-1 text-[11px] font-bold text-slate-200 transition hover:bg-slate-500/20 active:scale-95"
               >
                 <SettingsIcon className="w-3.5 h-3.5 text-slate-300" />
@@ -1022,7 +1131,7 @@ export default function App() {
               </button>
               <button
                 type="button"
-                onClick={() => setShowHelp(true)}
+                onClick={() => openOverlay('help')}
                 className="flex items-center justify-center gap-1 rounded-xl border border-cyan-400/30 bg-cyan-500/10 py-2 px-1 text-[11px] font-bold text-cyan-200 transition hover:bg-cyan-500/20 active:scale-95"
               >
                 <HelpIcon className="w-3.5 h-3.5 text-cyan-300" />
@@ -1270,7 +1379,7 @@ export default function App() {
             <div className="border-t border-white/10 p-3">
               <button
                 type="button"
-                onClick={() => setShowHelp(false)}
+                onClick={() => closeOverlay('help')}
                 className="w-full rounded-2xl bg-gradient-to-r from-sky-400 to-indigo-500 px-4 py-3 text-sm font-black uppercase tracking-wider text-slate-900 transition hover:brightness-110 active:scale-[0.98]"
               >
                 Got it — Let&apos;s Play
@@ -1297,7 +1406,7 @@ export default function App() {
               </h2>
               <button
                 type="button"
-                onClick={() => setShowAch(false)}
+                onClick={() => closeOverlay('achievements')}
                 className="rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 font-bold text-white/70 transition hover:bg-white/15"
               >
                 ✕
@@ -1393,10 +1502,7 @@ export default function App() {
               </h2>
               <button
                 type="button"
-                onClick={() => {
-                  setShowCloud(false);
-                  setCloudMsg('');
-                }}
+                onClick={() => closeOverlay('cloud')}
                 className="rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 font-bold text-white/70 transition hover:bg-white/15"
               >
                 ✕
@@ -1458,7 +1564,7 @@ export default function App() {
           stats={stats}
           curChar={curChar}
           curTool={curTool}
-          onClose={() => setShowLevels(false)}
+          onClose={() => closeOverlay('levels')}
         />
       )}
 
@@ -1471,7 +1577,7 @@ export default function App() {
           toggleMusic={toggleMusic}
           toggleSfx={toggleSfx}
           changeVolume={changeVolume}
-          onClose={() => setShowSettings(false)}
+          onClose={() => closeOverlay('settings')}
         />
       )}
 
@@ -1484,7 +1590,7 @@ export default function App() {
           cancelText={confirmModal.cancelText}
           isDestructive={confirmModal.isDestructive}
           onConfirm={confirmModal.onConfirm}
-          onCancel={() => setConfirmModal(null)}
+          onCancel={() => closeOverlay('confirm')}
         />
       )}
 
@@ -1519,21 +1625,31 @@ export default function App() {
               <StatBox label="Blasters" value={String(stats.smokeBlasters)} />
             </div>
 
-            {/* 1. Resume */}
+            {/* 1. Resume Game */}
             <button
               type="button"
               onClick={() => gameRef.current?.resume()}
-              className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-400 py-3.5 text-base font-black uppercase tracking-wider text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:brightness-110 active:scale-[0.98]"
+              className="mb-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-400 py-3.5 text-base font-black uppercase tracking-wider text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:brightness-110 active:scale-[0.98]"
             >
               <PlayIcon className="w-4 h-4" />
               <span>Resume Game</span>
+            </button>
+
+            {/* 2. Save & Main Menu */}
+            <button
+              type="button"
+              onClick={() => gameRef.current?.saveAndToMenu()}
+              className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-sky-400/40 bg-sky-500/20 py-2.5 text-xs font-black uppercase tracking-wider text-sky-200 shadow-md transition hover:bg-sky-500/30 active:scale-[0.98]"
+            >
+              <HomeIcon className="w-4 h-4 text-sky-300" />
+              <span>Save &amp; Main Menu</span>
             </button>
 
             {/* In-Run System Panels */}
             <div className="mb-3 grid grid-cols-2 gap-2 text-xs">
               <button
                 type="button"
-                onClick={() => setShowLevels(true)}
+                onClick={() => openOverlay('levels')}
                 className="flex items-center justify-center gap-2 rounded-2xl border border-purple-400/40 bg-purple-500/15 p-3 font-black text-purple-200 transition hover:bg-purple-500/25 active:scale-95"
               >
                 <LevelIcon className="w-4 h-4 text-purple-300" />
@@ -1541,7 +1657,7 @@ export default function App() {
               </button>
               <button
                 type="button"
-                onClick={() => openShop()}
+                onClick={() => openOverlay('shop')}
                 className="flex items-center justify-center gap-2 rounded-2xl border border-amber-400/40 bg-amber-500/15 p-3 font-black text-amber-200 transition hover:bg-amber-500/25 active:scale-95"
               >
                 <ShopIcon className="w-4 h-4 text-amber-300" />
@@ -1549,7 +1665,7 @@ export default function App() {
               </button>
               <button
                 type="button"
-                onClick={() => setShowAch(true)}
+                onClick={() => openOverlay('achievements')}
                 className="flex items-center justify-center gap-2 rounded-2xl border border-pink-400/40 bg-pink-500/15 p-3 font-black text-pink-200 transition hover:bg-pink-500/25 active:scale-95"
               >
                 <AwardIcon className="w-4 h-4 text-pink-300" />
@@ -1557,7 +1673,7 @@ export default function App() {
               </button>
               <button
                 type="button"
-                onClick={() => setShowCloud(true)}
+                onClick={() => openOverlay('cloud')}
                 className="flex items-center justify-center gap-2 rounded-2xl border border-sky-400/40 bg-sky-500/15 p-3 font-black text-sky-200 transition hover:bg-sky-500/25 active:scale-95"
               >
                 <CloudIcon className="w-4 h-4 text-sky-300" />
@@ -1565,7 +1681,7 @@ export default function App() {
               </button>
               <button
                 type="button"
-                onClick={() => setShowSettings(true)}
+                onClick={() => openOverlay('settings')}
                 className="flex items-center justify-center gap-2 rounded-2xl border border-slate-400/40 bg-slate-500/15 p-3 font-black text-slate-200 transition hover:bg-slate-500/25 active:scale-95"
               >
                 <SettingsIcon className="w-4 h-4 text-slate-300" />
@@ -1573,7 +1689,7 @@ export default function App() {
               </button>
               <button
                 type="button"
-                onClick={() => setShowHelp(true)}
+                onClick={() => openOverlay('help')}
                 className="flex items-center justify-center gap-2 rounded-2xl border border-cyan-400/40 bg-cyan-500/15 p-3 font-black text-cyan-200 transition hover:bg-cyan-500/25 active:scale-95"
               >
                 <HelpIcon className="w-4 h-4 text-cyan-300" />
@@ -1586,7 +1702,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() =>
-                  setConfirmModal({
+                  triggerConfirm({
                     title: 'Restart Run?',
                     message:
                       'Are you sure you want to restart this run from Level 1? All cash earned up to this point is safely banked, but current run level and progress will reset.',
@@ -1594,7 +1710,7 @@ export default function App() {
                     cancelText: 'Cancel',
                     isDestructive: true,
                     onConfirm: () => {
-                      setConfirmModal(null);
+                      closeOverlay('confirm');
                       gameRef.current?.restart();
                     },
                   })
@@ -1607,25 +1723,23 @@ export default function App() {
               <button
                 type="button"
                 onClick={() =>
-                  setConfirmModal({
-                    title: 'Exit to Main Menu?',
+                  triggerConfirm({
+                    title: 'End Active Run?',
                     message:
-                      'Exiting to the main menu will end your active run at Level ' +
-                      stats.level +
-                      '. Your bank balance and lifetime achievements are already permanently saved.',
-                    confirmText: 'Exit to Menu',
+                      'Are you sure you want to end this run? Your earned run cash and score will be banked permanently and the run will be marked finished.',
+                    confirmText: 'End Run & Bank',
                     cancelText: 'Stay in Run',
                     isDestructive: true,
                     onConfirm: () => {
-                      setConfirmModal(null);
-                      gameRef.current?.toMenu();
+                      closeOverlay('confirm');
+                      gameRef.current?.endRun();
                     },
                   })
                 }
                 className="flex items-center justify-center gap-1.5 rounded-2xl border border-white/15 bg-white/5 py-2.5 text-xs font-bold uppercase tracking-wider text-white/70 transition hover:bg-white/10 active:scale-95"
               >
                 <HomeIcon className="w-3.5 h-3.5 text-white/70" />
-                <span>Main Menu</span>
+                <span>End Run</span>
               </button>
             </div>
           </div>

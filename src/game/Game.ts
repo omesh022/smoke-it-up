@@ -1,6 +1,55 @@
 import { AudioManager } from './Audio';
+import {
+  GLOBAL_TOOL_DAMAGE_MULT,
+  GLOBAL_EARNINGS_MULT,
+  PASSIVE_RECOVERY_DELAY,
+  PASSIVE_RECOVERY_RATE,
+  PASSIVE_RECOVERY_CAP,
+  AVOCADO_RECOVERY_HP,
+  STAR_TO_CASH,
+  GAME_MODES,
+  CHALLENGE_MODS,
+  calculateJarReward,
+  calculateLiveDrainRate,
+  getBaseToolDrain,
+  updatePassiveRecovery,
+  calculateFruitHeal,
+  type ChallengeModDef,
+} from './Balance';
+
+export {
+  GLOBAL_TOOL_DAMAGE_MULT,
+  GLOBAL_EARNINGS_MULT,
+  PASSIVE_RECOVERY_DELAY,
+  PASSIVE_RECOVERY_RATE,
+  PASSIVE_RECOVERY_CAP,
+  AVOCADO_RECOVERY_HP,
+  STAR_TO_CASH,
+  GAME_MODES,
+  CHALLENGE_MODS,
+  calculateJarReward,
+  calculateLiveDrainRate,
+  getBaseToolDrain,
+  updatePassiveRecovery,
+  calculateFruitHeal,
+};
 
 export type GameState = 'menu' | 'playing' | 'paused' | 'gameover';
+export type GameMode = 'classic' | 'relaxed' | 'rush';
+
+export interface ActionFeedback {
+  success: boolean;
+  reason?:
+    | 'INSUFFICIENT_FUNDS'
+    | 'ALREADY_OWNED'
+    | 'LOCKED'
+    | 'FULL_HEALTH'
+    | 'OUT_OF_STOCK'
+    | 'MAX_STOCK'
+    | 'JAR_FULL'
+    | 'INVALID_STATE';
+  message: string;
+}
 
 // ============ Defs ============
 
@@ -14,7 +63,6 @@ export interface CharacterDef {
   cost: number;
   mult: number;
   icon: string;
-  emoji?: string;
   blurb: string;
   skin: string;
   skinDark: string;
@@ -37,7 +85,6 @@ export interface ToolDef {
   drain: number;
   earn: number; // jar payout multiplier
   icon: string;
-  emoji?: string;
   blurb: string;
   interval: number;
   count: number;
@@ -50,112 +97,21 @@ export interface FruitDef {
   id: string;
   name: string;
   icon: string;
-  emoji?: string;
   cost: number;
   heal: number;
   blurb: string;
 }
 
-export interface ChallengeMod {
-  id: string;
-  name: string;
-  icon: string;
-  emoji?: string;
-  desc: string;
-}
+export type ChallengeMod = ChallengeModDef;
 
 export interface AchievementDef {
   id: string;
   name: string;
   desc: string;
   icon: string;
-  emoji?: string;
   stars?: number;
   blasters?: number;
 }
-
-export const GLOBAL_TOOL_DAMAGE_MULT = 0.90; // Exactly 10% damage reduction applied globally
-export const GLOBAL_EARNINGS_MULT = 1.35; // Exactly 35% earnings increase on completed jars
-
-export type GameMode = 'classic' | 'relaxed' | 'rush';
-
-export interface GameModeDef {
-  id: GameMode;
-  name: string;
-  icon: string;
-  emoji?: string;
-  badgeColor: string;
-  tagline: string;
-  desc: string;
-  benefits: string[];
-  difficulty: 'Easy' | 'Normal' | 'Hard';
-  damageMult: number;
-  earnMult: number;
-  fillSpeedMult: number;
-  recoveryRateMult: number;
-}
-
-export const GAME_MODES: Record<GameMode, GameModeDef> = {
-  classic: {
-    id: 'classic',
-    name: 'Classic',
-    icon: 'scale',
-    emoji: '⚖️',
-    badgeColor: 'border-purple-400/40 bg-purple-500/20 text-purple-200',
-    tagline: 'Standard balanced experience',
-    desc: 'The original Smoke It Up gameplay. Balanced lung damage, standard payouts, and steady progression.',
-    benefits: [
-      'Global -10% tool damage applied',
-      'Global +35% earnings on every jar',
-      'Standard challenge frequencies & quotas',
-    ],
-    difficulty: 'Normal',
-    damageMult: 1.0,
-    earnMult: 1.0,
-    fillSpeedMult: 1.0,
-    recoveryRateMult: 1.0,
-  },
-  relaxed: {
-    id: 'relaxed',
-    name: 'Relaxed',
-    icon: 'lungs',
-    emoji: '🧘',
-    badgeColor: 'border-emerald-400/40 bg-emerald-500/20 text-emerald-200',
-    tagline: 'Chill vibes & easier survival',
-    desc: 'Lower lung damage and accelerated passive recovery. Perfect for casual play and stress-free filling.',
-    benefits: [
-      '25% less lung damage (0.75x)',
-      'Faster passive lung recovery (+50%)',
-      'Slightly lower jar rewards (0.85x)',
-    ],
-    difficulty: 'Easy',
-    damageMult: 0.75,
-    earnMult: 0.85,
-    fillSpeedMult: 1.0,
-    recoveryRateMult: 1.5,
-  },
-  rush: {
-    id: 'rush',
-    name: 'Rush',
-    icon: 'zap',
-    emoji: '⚡',
-    badgeColor: 'border-orange-400/40 bg-orange-500/20 text-orange-200',
-    tagline: 'High stakes, high rewards',
-    desc: 'Fast jar filling speed and +25% payout bonus, but tools burn lungs 35% harder. Fast reflexes required.',
-    benefits: [
-      '35% faster jar filling speed (1.35x)',
-      '+25% bonus cash on all jars (1.25x)',
-      'Higher lung drain & difficulty (+35%)',
-    ],
-    difficulty: 'Hard',
-    damageMult: 1.35,
-    earnMult: 1.25,
-    fillSpeedMult: 1.35,
-    recoveryRateMult: 0.8,
-  },
-};
-
-export const STAR_TO_CASH = 25;
 
 export const CHARACTERS: CharacterDef[] = [
   {
@@ -342,21 +298,6 @@ export const ENERGY_DRINK = {
   blurb: '+8 now, then +3 HP/s for 8s. Only passive regen!',
 };
 
-export const CHALLENGE_MODS: ChallengeMod[] = [
-  { id: 'huge', name: 'Giant Jars', icon: 'scale', desc: 'Jars need 2x smoke — pay 2.2x' },
-  { id: 'flu', name: 'The Flu', icon: 'thermometer', desc: 'Sick! +30% lung drain, constant cough' },
-  { id: 'storm', name: 'Heavy Storm', icon: 'wind', desc: 'Rain & dark skies. Healing cut in half' },
-  { id: 'blackout', name: 'Blackout', icon: 'zapoff', desc: 'Darker everywhere. +15% lung drain' },
-  { id: 'dud', name: 'Dud Tools', icon: 'alert', desc: 'Your tool fills 40% slower' },
-  { id: 'thin', name: 'Thin Smoke', icon: 'lungs', desc: 'Less smoke per drag' },
-  { id: 'burn', name: 'Burning Lungs', icon: 'flame', desc: 'Lung drain +50%' },
-  { id: 'weak', name: 'Weak Body', icon: 'lungs', desc: 'Healing 40% less effective' },
-  { id: 'windy', name: 'Crosswinds', icon: 'wind', desc: 'Strong wind scatters smoke' },
-  { id: 'choke', name: 'Choke Hold', icon: 'alert', desc: 'Fill speed cut 25%, drain +20%' },
-  { id: 'tax', name: 'Smoke Tax', icon: 'money', desc: 'Jar payouts cut 25%' },
-  { id: 'night', name: 'All-Nighter', icon: 'scale', desc: 'Dark + cough more often' },
-];
-
 export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'first', name: 'First Jar', desc: 'Fill your very first jar', icon: 'trophy', stars: 1 },
   { id: 'jars10', name: 'Jar Collector', desc: 'Fill 10 jars (lifetime)', icon: 'award', stars: 2 },
@@ -542,17 +483,21 @@ interface Progress {
 }
 
 const LS_KEY = 'smokeItUp.progress.v5';
-const ACTIVE_RUN_KEY = 'smokeItUp.activeRun.v1';
+const ACTIVE_RUN_KEY = 'smokeItUp.activeRun.v2';
 
 export interface ActiveRunSave {
-  version: number;
+  version: 2;
   gameMode: GameMode;
   level: number;
   jarsThisLevel: number;
-  jarFill: number;
-  jarValue: number;
-  jarGolden: boolean;
-  jarHue: number;
+  jar: {
+    fill: number;
+    value: number;
+    golden: boolean;
+    hue: number;
+    w: number;
+    h: number;
+  };
   lungHealth: number;
   score: number;
   earnedThisRun: number;
@@ -564,10 +509,14 @@ export interface ActiveRunSave {
   selectedTool: number;
   inChallenge: boolean;
   challengeMods: string[];
+  theme: LevelTheme;
   boostTimer: number;
   wetTimer: number;
   gustTimer: number;
   regenBuff: number;
+  idleHealTimer: number;
+  isPassiveRecovering: boolean;
+  earnPenalty: number;
   drags: number;
   containersFilled: number;
   goldenFilled: number;
@@ -708,9 +657,12 @@ export class Game {
   private flash = 0;
   private smokeEmitTimer = 0;
 
+  private cachedActiveRun: ActiveRunSave | null = null;
+
   public onStatsChange?: (stats: GameStats) => void;
   public onStateChange?: (state: GameState) => void;
   public onToast?: (ach: AchievementDef) => void;
+  public onFeedback?: (fb: ActionFeedback) => void;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -728,6 +680,7 @@ export class Game {
     this.selectedTool = Math.min(prog.selectedTool, TOOLS.length - 1);
     this.highScore = prog.highScore;
     this.scores = prog.scores;
+    this.cachedActiveRun = this.loadActiveRunFromStorage();
     this.bestLevel = prog.bestLevel;
     this.bank = prog.bank;
     this.drinkStock = prog.drinkStock;
@@ -1115,63 +1068,6 @@ export class Game {
     if (!has('stars50') && this.lifetimeStars >= 50) this.unlockAchievement('stars50');
   }
 
-  convertStars(n = 1) {
-    if (this.state !== 'playing' && this.state !== 'menu') return;
-    const count = Math.max(1, Math.floor(n));
-    if (this.goldenStars < count) {
-      this.addFloater(this.width / 2, this.height * 0.3, 'Need more ⭐', '#ff6b6b', 22);
-      return;
-    }
-    this.goldenStars -= count;
-    const cash = count * STAR_TO_CASH;
-    this.bank += cash;
-    this.audio?.playSfx('coin');
-    this.addFloater(this.width / 2, this.height * 0.32, count + '⭐ → $' + cash, '#ffd700', 26);
-    this.saveProgress();
-    this.emitStats();
-  }
-
-  useBlaster() {
-    if (this.state !== 'playing' || this.shopOpen) return;
-    if (this.smokeBlasters <= 0) {
-      this.addFloater(this.width / 2, this.height * 0.3, 'No blasters!', '#ff6b6b', 22);
-      return;
-    }
-    if (this.jar.fill >= 1 || this.jar.pop > 0) return;
-    this.smokeBlasters -= 1;
-    this.lifetimeBlastersUsed += 1;
-    this.jar.fill = 1;
-    this.flash = 0.55;
-    this.shakeIntensity = 18;
-    this.audio?.playSfx('pop');
-    this.audio?.playSfx('event');
-    this.addFloater(this.jar.x, this.jar.y - 50, '💥 BLAST!', '#ff9f1c', 34);
-    for (let i = 0; i < 28; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const sp = 160 + Math.random() * 240;
-      this.particles.push({
-        x: this.charX + 40,
-        y: this.charY - 20,
-        vx: Math.cos(a) * sp,
-        vy: Math.sin(a) * sp - 40,
-        life: 0,
-        maxLife: 0.7 + Math.random() * 0.4,
-        size: 10 + Math.random() * 14,
-        type: 'puff',
-        color: '#ffffff',
-        rotation: 0,
-        rotSpeed: 0,
-        gravity: 40,
-        drag: 0.96,
-      });
-    }
-    this.saveProgress();
-    this.saveActiveRun();
-    this.checkAchievements();
-    this.completeJar();
-    this.emitStats();
-  }
-
   // ---- Shop actions ----
   private shopPrice(base: number) {
     const d = this.discountActive ? 0.8 : 1;
@@ -1205,88 +1101,170 @@ export class Game {
     this.audio?.playSfx('unlock');
   }
 
-  buyCharacter(i: number) {
-    if (this.state !== 'playing' && this.state !== 'menu') return;
+  buyCharacter(i: number): ActionFeedback {
+    if (this.state !== 'playing' && this.state !== 'paused' && this.state !== 'menu') {
+      const fb: ActionFeedback = { success: false, reason: 'INVALID_STATE', message: 'Cannot buy character now' };
+      this.onFeedback?.(fb);
+      return fb;
+    }
     const c = CHARACTERS[i];
-    if (!c || this.unlockedChars[i]) return;
+    if (!c) {
+      const fb: ActionFeedback = { success: false, reason: 'INVALID_STATE', message: 'Unknown character' };
+      this.onFeedback?.(fb);
+      return fb;
+    }
+    if (this.unlockedChars[i]) {
+      const fb: ActionFeedback = { success: false, reason: 'ALREADY_OWNED', message: `${c.name} is already hired` };
+      this.onFeedback?.(fb);
+      return fb;
+    }
     const price = this.shopPrice(c.cost);
     if (this.bank < price) {
-      this.addFloater(this.width / 2, this.height * 0.3, 'Need $' + price, '#ff6b6b', 24);
-      return;
+      const fb: ActionFeedback = { success: false, reason: 'INSUFFICIENT_FUNDS', message: `Need $${price.toLocaleString()} to hire ${c.name}` };
+      this.addFloater(this.width / 2, this.height * 0.3, 'Need $' + price.toLocaleString(), '#ff6b6b', 24);
+      this.onFeedback?.(fb);
+      return fb;
     }
     this.bank -= price;
     this.unlockedChars[i] = true;
     this.selectedChar = i;
     this.saveProgress();
-    this.saveActiveRun();
-    this.celebrate(c.emoji + ' ' + c.name + ' HIRED!', 'x' + c.mult.toFixed(1) + ' PAY MULTIPLIER', '#ffd93d');
+    if (this.state === 'playing' || this.state === 'paused') {
+      this.saveActiveRun();
+    }
+    this.celebrate(`${c.name} HIRED!`, `x${c.mult.toFixed(1)} PAY MULTIPLIER`, '#ffd93d');
     this.checkAchievements();
     this.emitStats();
+
+    const fb: ActionFeedback = { success: true, message: `Successfully hired ${c.name}!` };
+    this.onFeedback?.(fb);
+    return fb;
   }
 
-  selectCharacter(i: number) {
-    if (this.unlockedChars[i] && i !== this.selectedChar) {
-      this.selectedChar = i;
-      this.saveProgress();
-      this.saveActiveRun();
-      this.addFloater(this.charX, this.charY - 90, CHARACTERS[i].name, '#ffd93d', 24);
-      this.audio?.playSfx('click');
-      this.emitStats();
+  selectCharacter(i: number): ActionFeedback {
+    const c = CHARACTERS[i];
+    if (!c || !this.unlockedChars[i]) {
+      const fb: ActionFeedback = { success: false, reason: 'LOCKED', message: `${c?.name || 'Character'} is locked. Hire in Shop!` };
+      this.onFeedback?.(fb);
+      return fb;
     }
+    if (i === this.selectedChar) {
+      const fb: ActionFeedback = { success: true, message: `Already playing as ${c.name}` };
+      this.onFeedback?.(fb);
+      return fb;
+    }
+
+    this.selectedChar = i;
+    this.saveProgress();
+    if (this.state === 'playing' || this.state === 'paused') {
+      this.saveActiveRun();
+    }
+    this.addFloater(this.charX, this.charY - 90, c.name, '#ffd93d', 24);
+    this.audio?.playSfx('click');
+    this.emitStats();
+
+    const fb: ActionFeedback = { success: true, message: `Selected ${c.name}` };
+    this.onFeedback?.(fb);
+    return fb;
   }
 
-  buyTool(i: number) {
-    if (this.state !== 'playing' && this.state !== 'menu') return;
+  buyTool(i: number): ActionFeedback {
     const t = TOOLS[i];
-    if (!t || this.unlockedTools[i]) return;
+    if (!t) {
+      const fb: ActionFeedback = { success: false, reason: 'INVALID_STATE', message: 'Unknown tool' };
+      this.onFeedback?.(fb);
+      return fb;
+    }
+    if (this.unlockedTools[i]) {
+      const fb: ActionFeedback = { success: false, reason: 'ALREADY_OWNED', message: `${t.name} is already acquired` };
+      this.onFeedback?.(fb);
+      return fb;
+    }
     const price = this.shopPrice(t.cost);
     if (this.bank < price) {
-      this.addFloater(this.width / 2, this.height * 0.3, 'Need $' + price, '#ff6b6b', 24);
-      return;
+      const fb: ActionFeedback = {
+        success: false,
+        reason: 'INSUFFICIENT_FUNDS',
+        message: `Need $${price.toLocaleString()} to acquire ${t.name}`,
+      };
+      this.addFloater(this.width / 2, this.height * 0.3, 'Need $' + price.toLocaleString(), '#ff6b6b', 24);
+      this.onFeedback?.(fb);
+      return fb;
     }
+
     this.bank -= price;
     this.unlockedTools[i] = true;
     this.selectedTool = i;
     this.saveProgress();
-    this.saveActiveRun();
-    this.celebrate(t.emoji + ' ' + t.name + ' ACQUIRED!', t.fill.toFixed(1) + 'x FILL SPEED', '#8ecae6');
+    if (this.state === 'playing' || this.state === 'paused') {
+      this.saveActiveRun();
+    }
+    this.celebrate(`${t.name} ACQUIRED!`, `${t.fill.toFixed(1)}x FILL SPEED`, '#8ecae6');
     this.checkAchievements();
     this.emitStats();
+
+    const fb: ActionFeedback = { success: true, message: `Acquired ${t.name}!` };
+    this.onFeedback?.(fb);
+    return fb;
   }
 
-  selectTool(i: number) {
-    if (this.unlockedTools[i] && i !== this.selectedTool) {
-      this.selectedTool = i;
-      this.saveProgress();
-      this.saveActiveRun();
-      this.addFloater(this.charX, this.charY - 90, TOOLS[i].name, '#8ecae6', 24);
-      this.audio?.playSfx('click');
-      this.emitStats();
+  selectTool(i: number): ActionFeedback {
+    const t = TOOLS[i];
+    if (!t || !this.unlockedTools[i]) {
+      const fb: ActionFeedback = { success: false, reason: 'LOCKED', message: `${t?.name || 'Tool'} is locked. Buy in Shop!` };
+      this.onFeedback?.(fb);
+      return fb;
     }
+    if (i === this.selectedTool) {
+      const fb: ActionFeedback = { success: true, message: `Already using ${t.name}` };
+      this.onFeedback?.(fb);
+      return fb;
+    }
+
+    this.selectedTool = i;
+    this.saveProgress();
+    if (this.state === 'playing' || this.state === 'paused') {
+      this.saveActiveRun();
+    }
+    this.addFloater(this.charX, this.charY - 90, t.name, '#8ecae6', 24);
+    this.audio?.playSfx('click');
+    this.emitStats();
+
+    const fb: ActionFeedback = { success: true, message: `Equipped ${t.name}` };
+    this.onFeedback?.(fb);
+    return fb;
   }
 
-  eatFruit(i: number) {
-    if (this.state !== 'playing') return;
+  eatFruit(i: number): ActionFeedback {
+    if (this.state !== 'playing' && this.state !== 'paused') {
+      const fb: ActionFeedback = { success: false, reason: 'INVALID_STATE', message: 'Fruits can only be eaten during a run' };
+      this.onFeedback?.(fb);
+      return fb;
+    }
     const f = FRUITS[i];
-    if (!f) return;
+    if (!f) {
+      const fb: ActionFeedback = { success: false, reason: 'INVALID_STATE', message: 'Unknown fruit' };
+      this.onFeedback?.(fb);
+      return fb;
+    }
     if (this.lungHealth >= 100) {
-      this.addFloater(this.width / 2, this.height * 0.3, 'Already healthy!', '#8ecae6', 24);
-      return;
+      const fb: ActionFeedback = { success: false, reason: 'FULL_HEALTH', message: 'Lung health is already at 100% full!' };
+      this.addFloater(this.width / 2, this.height * 0.3, 'Already at 100% HP!', '#8ecae6', 24);
+      this.onFeedback?.(fb);
+      return fb;
     }
     if (this.bank < f.cost) {
+      const fb: ActionFeedback = { success: false, reason: 'INSUFFICIENT_FUNDS', message: `Need $${f.cost} to buy ${f.name}` };
       this.addFloater(this.width / 2, this.height * 0.3, 'Need $' + f.cost, '#ff6b6b', 24);
-      return;
+      this.onFeedback?.(fb);
+      return fb;
     }
+
     this.bank -= f.cost;
-    let heal = 0;
-    if (f.id === 'avocado') {
-      heal = 100 - this.lungHealth;
-      this.lungHealth = 100;
-    } else {
-      const healMult = this.hasMod('weak') || this.hasMod('storm') ? 0.5 : 1;
-      heal = Math.min(Math.round(f.heal * healMult), 100 - this.lungHealth);
-      this.lungHealth = Math.min(100, this.lungHealth + heal);
-    }
+    const heal = calculateFruitHeal(f.id, f.heal, this.lungHealth, this.challengeMods);
+    this.lungHealth = Math.min(100, this.lungHealth + heal);
+    if (f.id === 'avocado') this.lungHealth = AVOCADO_RECOVERY_HP;
+
     this.fruitBought += 1;
     this.lifetimeFruit += 1;
     this.flash = 0.3;
@@ -1295,36 +1273,59 @@ export class Game {
     this.saveProgress();
     this.saveActiveRun();
 
-    for (let i = 0; i < 12; i++) {
+    for (let p = 0; p < 12; p++) {
       const a = Math.random() * Math.PI * 2;
       const sp = 90 + Math.random() * 150;
       this.particles.push({
-        x: this.charX, y: this.charY - 60, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 70,
-        life: 0, maxLife: 0.9 + Math.random() * 0.5, size: 7 + Math.random() * 8,
-        type: 'heart', color: '#ff4d6d', rotation: Math.random() * Math.PI * 2,
-        rotSpeed: (Math.random() - 0.5) * 6, gravity: 220, drag: 0.98,
+        x: this.charX,
+        y: this.charY - 60,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp - 70,
+        life: 0,
+        maxLife: 0.9 + Math.random() * 0.5,
+        size: 7 + Math.random() * 8,
+        type: 'heart',
+        color: '#ff4d6d',
+        rotation: Math.random() * Math.PI * 2,
+        rotSpeed: (Math.random() - 0.5) * 6,
+        gravity: 220,
+        drag: 0.98,
       });
     }
-    this.addFloater(this.charX, this.charY - 80, f.emoji + ' +' + Math.round(heal) + ' ❤', '#ff4d6d', 26);
+    this.addFloater(this.charX, this.charY - 80, `+${Math.round(heal)} HP`, '#ff4d6d', 26);
     this.checkAchievements();
     this.emitStats();
+
+    const fb: ActionFeedback = { success: true, message: `Ate ${f.name} (+${Math.round(heal)} HP)` };
+    this.onFeedback?.(fb);
+    return fb;
   }
 
-  drinkEnergy() {
-    if (this.state !== 'playing') return;
+  drinkEnergy(): ActionFeedback {
+    if (this.state !== 'playing' && this.state !== 'paused') {
+      const fb: ActionFeedback = { success: false, reason: 'INVALID_STATE', message: 'Energy drinks can only be used in a run' };
+      this.onFeedback?.(fb);
+      return fb;
+    }
     if (this.lungHealth >= 100) {
+      const fb: ActionFeedback = { success: false, reason: 'FULL_HEALTH', message: 'Lung health is already at 100% full!' };
       this.addFloater(this.width / 2, this.height * 0.3, 'Already full!', '#8ecae6', 24);
-      return;
+      this.onFeedback?.(fb);
+      return fb;
     }
     if (this.drinkStock <= 0) {
+      const fb: ActionFeedback = { success: false, reason: 'OUT_OF_STOCK', message: 'No energy cans in stock! Top up in Shop' };
       this.addFloater(this.width / 2, this.height * 0.3, 'No cans! Shop → Drinks', '#ff6b6b', 22);
-      return;
+      this.onFeedback?.(fb);
+      return fb;
     }
+
     this.drinkStock -= 1;
     this.energyDrinksUsed += 1;
     this.lifetimeDrinks += 1;
-    const healMult = this.hasMod('storm') || this.hasMod('weak') ? 0.5 : 1;
-    this.lungHealth = Math.min(100, this.lungHealth + ENERGY_DRINK.instant * healMult);
+    const healMult = (this.hasMod('storm') ? 0.5 : 1) * (this.hasMod('weak') ? 0.6 : 1);
+    const instantHeal = ENERGY_DRINK.instant * healMult;
+    this.lungHealth = Math.min(100, this.lungHealth + instantHeal);
     this.regenBuff = ENERGY_DRINK.regenTime;
     this.flash = 0.3;
     this.shakeIntensity = 4;
@@ -1332,39 +1333,142 @@ export class Game {
     this.saveProgress();
     this.saveActiveRun();
 
-    for (let i = 0; i < 14; i++) {
+    for (let p = 0; p < 14; p++) {
       const a = Math.random() * Math.PI * 2;
       const sp = 90 + Math.random() * 150;
       this.particles.push({
-        x: this.charX + 10, y: this.charY - 60, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 60,
-        life: 0, maxLife: 0.8 + Math.random() * 0.5, size: 4 + Math.random() * 5,
-        type: 'star', color: '#5adcff', rotation: Math.random() * Math.PI * 2,
-        rotSpeed: (Math.random() - 0.5) * 8, gravity: 160, drag: 0.98,
+        x: this.charX + 10,
+        y: this.charY - 60,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp - 60,
+        life: 0,
+        maxLife: 0.8 + Math.random() * 0.5,
+        size: 4 + Math.random() * 5,
+        type: 'star',
+        color: '#5adcff',
+        rotation: Math.random() * Math.PI * 2,
+        rotSpeed: (Math.random() - 0.5) * 8,
+        gravity: 160,
+        drag: 0.98,
       });
     }
-    this.addFloater(this.charX, this.charY - 90, '⚡ +' + Math.round(ENERGY_DRINK.instant * healMult) + ' & REGEN!', '#5adcff', 26);
+    this.addFloater(this.charX, this.charY - 90, `+${Math.round(instantHeal)} HP & REGEN!`, '#5adcff', 26);
     this.checkAchievements();
     this.emitStats();
+
+    const fb: ActionFeedback = { success: true, message: `Drank Energy Can (+${Math.round(instantHeal)} HP + Regen)` };
+    this.onFeedback?.(fb);
+    return fb;
   }
 
-  buyDrinks(n: number) {
-    if (this.state !== 'playing' && this.state !== 'menu') return;
+  buyDrinks(n: number): ActionFeedback {
     const cost = this.shopPrice(ENERGY_DRINK.cost * n);
     if (this.bank < cost) {
+      const fb: ActionFeedback = { success: false, reason: 'INSUFFICIENT_FUNDS', message: `Need $${cost} to buy ${n} energy can(s)` };
       this.addFloater(this.width / 2, this.height * 0.3, 'Need $' + cost, '#ff6b6b', 24);
-      return;
+      this.onFeedback?.(fb);
+      return fb;
     }
     if (this.drinkStock >= ENERGY_DRINK.maxStock) {
+      const fb: ActionFeedback = { success: false, reason: 'MAX_STOCK', message: `Energy Drink stock is full (${ENERGY_DRINK.maxStock}/${ENERGY_DRINK.maxStock})` };
       this.addFloater(this.width / 2, this.height * 0.3, 'Stock full!', '#8ecae6', 22);
-      return;
+      this.onFeedback?.(fb);
+      return fb;
     }
+
     this.bank -= cost;
     this.drinkStock = Math.min(ENERGY_DRINK.maxStock, this.drinkStock + n);
     this.audio?.playSfx('click');
     this.saveProgress();
-    this.saveActiveRun();
-    this.addFloater(this.width / 2, this.height * 0.3, '+' + n + ' ⚡ cans', '#5adcff', 24);
+    if (this.state === 'playing' || this.state === 'paused') {
+      this.saveActiveRun();
+    }
+    this.addFloater(this.width / 2, this.height * 0.3, `+${n} Energy Can(s)`, '#5adcff', 24);
     this.emitStats();
+
+    const fb: ActionFeedback = { success: true, message: `Purchased +${n} Energy Can(s)` };
+    this.onFeedback?.(fb);
+    return fb;
+  }
+
+  useBlaster(): ActionFeedback {
+    if (this.state !== 'playing' && this.state !== 'paused') {
+      const fb: ActionFeedback = { success: false, reason: 'INVALID_STATE', message: 'Smoke Blaster can only be used during a run' };
+      this.onFeedback?.(fb);
+      return fb;
+    }
+    if (this.smokeBlasters <= 0) {
+      const fb: ActionFeedback = { success: false, reason: 'OUT_OF_STOCK', message: 'No Smoke Blasters left! Earn from achievements' };
+      this.addFloater(this.width / 2, this.height * 0.3, 'No Blasters Left!', '#ff6b6b', 24);
+      this.onFeedback?.(fb);
+      return fb;
+    }
+    if (this.jar.fill >= 1) {
+      const fb: ActionFeedback = { success: false, reason: 'JAR_FULL', message: 'Jar is already 100% full!' };
+      this.onFeedback?.(fb);
+      return fb;
+    }
+
+    this.smokeBlasters -= 1;
+    this.lifetimeBlastersUsed += 1;
+    this.jar.fill = 1;
+    this.flash = 0.6;
+    this.shakeIntensity = 28;
+    this.audio?.playSfx('blaster');
+    this.saveProgress();
+    this.saveActiveRun();
+
+    for (let p = 0; p < 45; p++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 160 + Math.random() * 260;
+      this.particles.push({
+        x: this.jar.x,
+        y: this.jar.y,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp - 50,
+        life: 0,
+        maxLife: 1.0 + Math.random() * 0.6,
+        size: 8 + Math.random() * 12,
+        type: 'star',
+        color: '#ff9f1c',
+        rotation: 0,
+        rotSpeed: 6,
+        gravity: 240,
+        drag: 0.98,
+      });
+    }
+
+    this.addFloater(this.jar.x, this.jar.y - 80, 'SMOKE BLASTER!', '#ff9f1c', 32);
+    this.completeJar();
+    this.emitStats();
+
+    const fb: ActionFeedback = { success: true, message: 'Smoke Blaster fired! Jar filled instantly.' };
+    this.onFeedback?.(fb);
+    return fb;
+  }
+
+  convertStars(count: number): ActionFeedback {
+    const n = Math.min(this.goldenStars, Math.max(1, count));
+    if (n < 1 || this.goldenStars < 1) {
+      const fb: ActionFeedback = { success: false, reason: 'OUT_OF_STOCK', message: 'No Golden Stars available to convert' };
+      this.onFeedback?.(fb);
+      return fb;
+    }
+
+    const cash = n * STAR_TO_CASH;
+    this.goldenStars -= n;
+    this.bank += cash;
+    this.audio?.playSfx('coin');
+    this.addFloater(this.width / 2, this.height * 0.35, `+${n} Stars → +$${cash.toLocaleString()}`, '#ffd700', 26);
+    this.saveProgress();
+    if (this.state === 'playing' || this.state === 'paused') {
+      this.saveActiveRun();
+    }
+    this.emitStats();
+
+    const fb: ActionFeedback = { success: true, message: `Converted ${n} star(s) for +$${cash.toLocaleString()} cash!` };
+    this.onFeedback?.(fb);
+    return fb;
   }
 
   // ---- Cloud save ----
@@ -1453,6 +1557,9 @@ export class Game {
     if (this.wetTimer > 0) effects.push('WET');
     if (this.gustTimer > 0) effects.push('WIND');
     if (this.discountActive) effects.push('-20%');
+
+    const activeInfo = this.getActiveRunInfo();
+
     return {
       lungHealth: this.lungHealth,
       money: this.bank,
@@ -1491,13 +1598,270 @@ export class Game {
       gameMode: this.gameMode,
       isPassiveRecovering: this.isPassiveRecovering,
       hasActiveRun: this.hasActiveRun(),
-      activeRunLevel: this.getActiveRunInfo()?.level,
-      activeRunScore: this.getActiveRunInfo()?.score,
-      activeRunMode: this.getActiveRunInfo()?.mode,
+      activeRunLevel: activeInfo?.level,
+      activeRunScore: activeInfo?.score,
+      activeRunMode: activeInfo?.mode,
     };
   }
 
-  // ---- Internal ----
+  saveAndToMenu() {
+    this.saveActiveRun();
+    this.state = 'menu';
+    this.smoking = false;
+    this.shopOpen = false;
+    this.isOverlayOpen = false;
+    this.audio?.setSmoking(false);
+    this.emitStats();
+    this.onStateChange?.(this.state);
+  }
+
+  endRun() {
+    if (this.score > 0) {
+      this.scores.push(this.score);
+      this.scores.sort((a, b) => b - a);
+      this.scores = this.scores.slice(0, 5);
+      if (this.score > this.highScore) this.highScore = this.score;
+    }
+    this.clearActiveRun();
+    this.saveProgress();
+    this.state = 'menu';
+    this.smoking = false;
+    this.shopOpen = false;
+    this.isOverlayOpen = false;
+    this.challengeActive = false;
+    this.challengeMods = [];
+    this.fruitDrop = null;
+    this.banner = null;
+    this.audio?.setSmoking(false);
+    this.emitStats();
+    this.onStateChange?.(this.state);
+  }
+
+  // ---- Active Run Persistence (Cached & Schema Versioned) ----
+  private loadActiveRunFromStorage(): ActiveRunSave | null {
+    try {
+      const raw = localStorage.getItem(ACTIVE_RUN_KEY) || localStorage.getItem('smokeItUp.activeRun.v1');
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return null;
+      return this.migrateActiveRunData(parsed);
+    } catch {
+      return null;
+    }
+  }
+
+  private migrateActiveRunData(raw: any): ActiveRunSave | null {
+    if (!raw || typeof raw !== 'object') return null;
+    if (typeof raw.level !== 'number' || typeof raw.lungHealth !== 'number') return null;
+    const level = Math.max(1, Math.min(9999, !isNaN(raw.level) ? raw.level : 1));
+    const lungHealth = Math.max(0, Math.min(100, !isNaN(raw.lungHealth) ? raw.lungHealth : 0));
+    if (lungHealth <= 0) return null;
+
+    const gameMode: GameMode = raw.gameMode && GAME_MODES[raw.gameMode as GameMode] ? (raw.gameMode as GameMode) : 'classic';
+    const jarsThisLevel = Math.max(0, typeof raw.jarsThisLevel === 'number' && !isNaN(raw.jarsThisLevel) ? raw.jarsThisLevel : 0);
+
+    let jar: { fill: number; value: number; golden: boolean; hue: number; w: number; h: number };
+    if (raw.jar && typeof raw.jar === 'object') {
+      jar = {
+        fill: Math.max(0, Math.min(0.99, typeof raw.jar.fill === 'number' && !isNaN(raw.jar.fill) ? raw.jar.fill : 0)),
+        value: Math.max(1, typeof raw.jar.value === 'number' && !isNaN(raw.jar.value) ? raw.jar.value : 14),
+        golden: Boolean(raw.jar.golden),
+        hue: typeof raw.jar.hue === 'number' && !isNaN(raw.jar.hue) ? raw.jar.hue : 200,
+        w: typeof raw.jar.w === 'number' && !isNaN(raw.jar.w) ? raw.jar.w : 110,
+        h: typeof raw.jar.h === 'number' && !isNaN(raw.jar.h) ? raw.jar.h : 140,
+      };
+    } else {
+      jar = {
+        fill: Math.max(0, Math.min(0.99, typeof raw.jarFill === 'number' && !isNaN(raw.jarFill) ? raw.jarFill : 0)),
+        value: Math.max(1, typeof raw.jarValue === 'number' && !isNaN(raw.jarValue) ? raw.jarValue : 14),
+        golden: Boolean(raw.jarGolden),
+        hue: typeof raw.jarHue === 'number' && !isNaN(raw.jarHue) ? raw.jarHue : 200,
+        w: 110,
+        h: 140,
+      };
+    }
+
+    const theme: LevelTheme =
+      raw.theme && typeof raw.theme === 'object' && typeof raw.theme.skyTop === 'string'
+        ? raw.theme
+        : THEMES[0];
+
+    return {
+      version: 2,
+      gameMode,
+      level,
+      jarsThisLevel,
+      jar,
+      lungHealth,
+      score: Math.max(0, typeof raw.score === 'number' && !isNaN(raw.score) ? raw.score : 0),
+      earnedThisRun: Math.max(0, typeof raw.earnedThisRun === 'number' && !isNaN(raw.earnedThisRun) ? raw.earnedThisRun : 0),
+      combo: Math.max(1, Math.min(30, typeof raw.combo === 'number' && !isNaN(raw.combo) ? raw.combo : 1)),
+      bestCombo: Math.max(1, typeof raw.bestCombo === 'number' && !isNaN(raw.bestCombo) ? raw.bestCombo : 1),
+      perfectChain: Math.max(0, typeof raw.perfectChain === 'number' && !isNaN(raw.perfectChain) ? raw.perfectChain : 0),
+      chainTime: Math.max(0, typeof raw.chainTime === 'number' && !isNaN(raw.chainTime) ? raw.chainTime : 0),
+      selectedChar: Math.max(0, Math.min(CHARACTERS.length - 1, typeof raw.selectedChar === 'number' ? raw.selectedChar : 0)),
+      selectedTool: Math.max(0, Math.min(TOOLS.length - 1, typeof raw.selectedTool === 'number' ? raw.selectedTool : 0)),
+      inChallenge: Boolean(raw.inChallenge),
+      challengeMods: Array.isArray(raw.challengeMods) ? (raw.challengeMods.filter((id: unknown) => typeof id === 'string') as string[]) : [],
+      theme,
+      boostTimer: Math.max(0, typeof raw.boostTimer === 'number' && !isNaN(raw.boostTimer) ? raw.boostTimer : 0),
+      wetTimer: Math.max(0, typeof raw.wetTimer === 'number' && !isNaN(raw.wetTimer) ? raw.wetTimer : 0),
+      gustTimer: Math.max(0, typeof raw.gustTimer === 'number' && !isNaN(raw.gustTimer) ? raw.gustTimer : 0),
+      regenBuff: Math.max(0, typeof raw.regenBuff === 'number' && !isNaN(raw.regenBuff) ? raw.regenBuff : 0),
+      idleHealTimer: Math.max(0, typeof raw.idleHealTimer === 'number' && !isNaN(raw.idleHealTimer) ? raw.idleHealTimer : 0),
+      isPassiveRecovering: Boolean(raw.isPassiveRecovering),
+      earnPenalty: Math.max(0.1, Math.min(1.0, typeof raw.earnPenalty === 'number' && !isNaN(raw.earnPenalty) ? raw.earnPenalty : 1.0)),
+      drags: Math.max(0, typeof raw.drags === 'number' && !isNaN(raw.drags) ? raw.drags : 0),
+      containersFilled: Math.max(0, typeof raw.containersFilled === 'number' && !isNaN(raw.containersFilled) ? raw.containersFilled : 0),
+      goldenFilled: Math.max(0, typeof raw.goldenFilled === 'number' && !isNaN(raw.goldenFilled) ? raw.goldenFilled : 0),
+      fruitBought: Math.max(0, typeof raw.fruitBought === 'number' && !isNaN(raw.fruitBought) ? raw.fruitBought : 0),
+      energyDrinksUsed: Math.max(0, typeof raw.energyDrinksUsed === 'number' && !isNaN(raw.energyDrinksUsed) ? raw.energyDrinksUsed : 0),
+      timestamp: typeof raw.timestamp === 'number' && !isNaN(raw.timestamp) ? raw.timestamp : Date.now(),
+    };
+  }
+
+  hasActiveRun(): boolean {
+    return Boolean(this.cachedActiveRun && this.cachedActiveRun.level >= 1 && this.cachedActiveRun.lungHealth > 0);
+  }
+
+  getActiveRunInfo(): { level: number; score: number; mode: GameMode; charIndex: number } | null {
+    if (!this.cachedActiveRun || this.cachedActiveRun.lungHealth <= 0) return null;
+    return {
+      level: this.cachedActiveRun.level,
+      score: this.cachedActiveRun.score,
+      mode: this.cachedActiveRun.gameMode,
+      charIndex: this.cachedActiveRun.selectedChar,
+    };
+  }
+
+  saveActiveRun() {
+    if (this.state !== 'playing' && this.state !== 'paused') return;
+    if (this.lungHealth <= 0) {
+      this.clearActiveRun();
+      return;
+    }
+
+    try {
+      const data: ActiveRunSave = {
+        version: 2,
+        gameMode: this.gameMode,
+        level: this.level,
+        jarsThisLevel: this.jarsThisLevel,
+        jar: {
+          fill: this.jar ? this.jar.fill : 0,
+          value: this.jar ? this.jar.value : 14,
+          golden: this.jar ? this.jar.golden : false,
+          hue: this.jar ? this.jar.hue : 200,
+          w: this.jar ? this.jar.w : 110,
+          h: this.jar ? this.jar.h : 140,
+        },
+        lungHealth: this.lungHealth,
+        score: this.score,
+        earnedThisRun: this.earnedThisRun,
+        combo: this.combo,
+        bestCombo: this.bestCombo,
+        perfectChain: this.perfectChain,
+        chainTime: this.chainTime,
+        selectedChar: this.selectedChar,
+        selectedTool: this.selectedTool,
+        inChallenge: this.challengeActive,
+        challengeMods: [...this.challengeMods],
+        theme: { ...this.theme },
+        boostTimer: this.boostTimer,
+        wetTimer: this.wetTimer,
+        gustTimer: this.gustTimer,
+        regenBuff: this.regenBuff,
+        idleHealTimer: this.idleHealTimer,
+        isPassiveRecovering: this.isPassiveRecovering,
+        earnPenalty: this.earnPenalty,
+        drags: this.drags,
+        containersFilled: this.containersFilled,
+        goldenFilled: this.goldenFilled,
+        fruitBought: this.fruitBought,
+        energyDrinksUsed: this.energyDrinksUsed,
+        timestamp: Date.now(),
+      };
+
+      this.cachedActiveRun = data;
+      localStorage.setItem(ACTIVE_RUN_KEY, JSON.stringify(data));
+    } catch {
+      // ignore storage quota errors
+    }
+  }
+
+  clearActiveRun() {
+    this.cachedActiveRun = null;
+    try {
+      localStorage.removeItem(ACTIVE_RUN_KEY);
+      localStorage.removeItem('smokeItUp.activeRun.v1');
+    } catch {
+      // ignore
+    }
+  }
+
+  restoreActiveRun(): boolean {
+    if (!this.cachedActiveRun) {
+      this.cachedActiveRun = this.loadActiveRunFromStorage();
+    }
+    const data = this.cachedActiveRun;
+    if (!data || data.lungHealth <= 0) return false;
+
+    try {
+      this.gameMode = data.gameMode && GAME_MODES[data.gameMode] ? data.gameMode : 'classic';
+      this.level = Math.max(1, data.level);
+      this.jarsThisLevel = Math.max(0, data.jarsThisLevel);
+      this.lungHealth = Math.max(1, Math.min(100, data.lungHealth));
+      this.score = Math.max(0, data.score);
+      this.earnedThisRun = Math.max(0, data.earnedThisRun);
+      this.combo = Math.max(1, data.combo);
+      this.bestCombo = Math.max(1, data.bestCombo);
+      this.perfectChain = Math.max(0, data.perfectChain);
+      this.chainTime = Math.max(0, data.chainTime);
+      if (typeof data.selectedChar === 'number' && this.unlockedChars[data.selectedChar]) {
+        this.selectedChar = data.selectedChar;
+      }
+      if (typeof data.selectedTool === 'number' && this.unlockedTools[data.selectedTool]) {
+        this.selectedTool = data.selectedTool;
+      }
+      this.challengeActive = Boolean(data.inChallenge);
+      this.challengeMods = Array.isArray(data.challengeMods) ? data.challengeMods : [];
+      if (data.theme && typeof data.theme === 'object') {
+        this.theme = { ...data.theme };
+      }
+      this.boostTimer = Math.max(0, data.boostTimer);
+      this.wetTimer = Math.max(0, data.wetTimer);
+      this.gustTimer = Math.max(0, data.gustTimer);
+      this.regenBuff = Math.max(0, data.regenBuff);
+      this.idleHealTimer = Math.max(0, data.idleHealTimer);
+      this.isPassiveRecovering = Boolean(data.isPassiveRecovering);
+      this.earnPenalty = Math.max(0.1, Math.min(1.0, data.earnPenalty));
+      this.drags = Math.max(0, data.drags);
+      this.containersFilled = Math.max(0, data.containersFilled);
+      this.goldenFilled = Math.max(0, data.goldenFilled);
+      this.fruitBought = Math.max(0, data.fruitBought);
+      this.energyDrinksUsed = Math.max(0, data.energyDrinksUsed);
+
+      this.jar = this.spawnJar();
+      if (data.jar) {
+        this.jar.fill = Math.max(0, Math.min(0.99, data.jar.fill));
+        this.jar.value = Math.max(1, data.jar.value);
+        this.jar.golden = Boolean(data.jar.golden);
+        this.jar.hue = data.jar.hue;
+        this.jar.w = data.jar.w || 110;
+        this.jar.h = data.jar.h || 140;
+      }
+      this.jar.x = this.width * (this.width < 500 ? 0.76 : 0.72);
+      this.jar.y = this.height * (this.width < 500 ? 0.53 : 0.62);
+
+      this.smoking = false;
+      this.shopOpen = false;
+      this.lastTime = performance.now();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private resetGame() {
     this.lungHealth = 100;
     this.score = 0;
@@ -1620,141 +1984,6 @@ export class Game {
       localStorage.setItem(LS_KEY, JSON.stringify(p));
     } catch {
       // ignore
-    }
-  }
-
-  hasActiveRun(): boolean {
-    try {
-      const raw = localStorage.getItem(ACTIVE_RUN_KEY);
-      if (!raw) return false;
-      const data = JSON.parse(raw) as Partial<ActiveRunSave>;
-      return Boolean(data && typeof data.level === 'number' && data.lungHealth && data.lungHealth > 0);
-    } catch {
-      return false;
-    }
-  }
-
-  getActiveRunInfo(): { level: number; score: number; mode: GameMode; charIndex: number } | null {
-    try {
-      const raw = localStorage.getItem(ACTIVE_RUN_KEY);
-      if (!raw) return null;
-      const data = JSON.parse(raw) as Partial<ActiveRunSave>;
-      if (!data || typeof data.level !== 'number' || (data.lungHealth ?? 0) <= 0) return null;
-      return {
-        level: data.level,
-        score: data.score ?? 0,
-        mode: data.gameMode && GAME_MODES[data.gameMode] ? data.gameMode : 'classic',
-        charIndex: data.selectedChar ?? this.selectedChar,
-      };
-    } catch {
-      return null;
-    }
-  }
-
-  saveActiveRun() {
-    if (this.state !== 'playing' && this.state !== 'paused') return;
-    if (this.lungHealth <= 0) {
-      this.clearActiveRun();
-      return;
-    }
-    try {
-      const data: ActiveRunSave = {
-        version: 1,
-        gameMode: this.gameMode,
-        level: this.level,
-        jarsThisLevel: this.jarsThisLevel,
-        jarFill: this.jar ? this.jar.fill : 0,
-        jarValue: this.jar ? this.jar.value : 14,
-        jarGolden: this.jar ? this.jar.golden : false,
-        jarHue: this.jar ? this.jar.hue : 200,
-        lungHealth: this.lungHealth,
-        score: this.score,
-        earnedThisRun: this.earnedThisRun,
-        combo: this.combo,
-        bestCombo: this.bestCombo,
-        perfectChain: this.perfectChain,
-        chainTime: this.chainTime,
-        selectedChar: this.selectedChar,
-        selectedTool: this.selectedTool,
-        inChallenge: this.challengeActive,
-        challengeMods: this.challengeMods,
-        boostTimer: this.boostTimer,
-        wetTimer: this.wetTimer,
-        gustTimer: this.gustTimer,
-        regenBuff: this.regenBuff,
-        drags: this.drags,
-        containersFilled: this.containersFilled,
-        goldenFilled: this.goldenFilled,
-        fruitBought: this.fruitBought,
-        energyDrinksUsed: this.energyDrinksUsed,
-        timestamp: Date.now(),
-      };
-      localStorage.setItem(ACTIVE_RUN_KEY, JSON.stringify(data));
-    } catch {
-      // ignore
-    }
-  }
-
-  clearActiveRun() {
-    try {
-      localStorage.removeItem(ACTIVE_RUN_KEY);
-    } catch {
-      // ignore
-    }
-  }
-
-  restoreActiveRun(): boolean {
-    try {
-      const raw = localStorage.getItem(ACTIVE_RUN_KEY);
-      if (!raw) return false;
-      const data = JSON.parse(raw) as Partial<ActiveRunSave>;
-      if (!data || typeof data.level !== 'number' || (data.lungHealth ?? 0) <= 0) {
-        return false;
-      }
-      this.gameMode = data.gameMode && GAME_MODES[data.gameMode] ? data.gameMode : 'classic';
-      this.level = Math.max(1, data.level);
-      this.jarsThisLevel = Math.max(0, data.jarsThisLevel ?? 0);
-      this.lungHealth = Math.max(1, Math.min(100, data.lungHealth ?? 100));
-      this.score = Math.max(0, data.score ?? 0);
-      this.earnedThisRun = Math.max(0, data.earnedThisRun ?? 0);
-      this.combo = Math.max(1, data.combo ?? 1);
-      this.bestCombo = Math.max(1, data.bestCombo ?? this.combo);
-      this.perfectChain = Math.max(0, data.perfectChain ?? 0);
-      this.chainTime = Math.max(0, data.chainTime ?? 0);
-      if (typeof data.selectedChar === 'number' && this.unlockedChars[data.selectedChar]) {
-        this.selectedChar = data.selectedChar;
-      }
-      if (typeof data.selectedTool === 'number' && this.unlockedTools[data.selectedTool]) {
-        this.selectedTool = data.selectedTool;
-      }
-      this.challengeActive = Boolean(data.inChallenge);
-      this.challengeMods = Array.isArray(data.challengeMods) ? data.challengeMods : [];
-      this.boostTimer = Math.max(0, data.boostTimer ?? 0);
-      this.wetTimer = Math.max(0, data.wetTimer ?? 0);
-      this.gustTimer = Math.max(0, data.gustTimer ?? 0);
-      this.regenBuff = Math.max(0, data.regenBuff ?? 0);
-      this.drags = Math.max(0, data.drags ?? 0);
-      this.containersFilled = Math.max(0, data.containersFilled ?? 0);
-      this.goldenFilled = Math.max(0, data.goldenFilled ?? 0);
-      this.fruitBought = Math.max(0, data.fruitBought ?? 0);
-      this.energyDrinksUsed = Math.max(0, data.energyDrinksUsed ?? 0);
-
-      this.jar = this.spawnJar();
-      if (typeof data.jarFill === 'number') this.jar.fill = Math.max(0, Math.min(0.99, data.jarFill));
-      if (typeof data.jarValue === 'number' && data.jarValue > 0) this.jar.value = data.jarValue;
-      if (typeof data.jarGolden === 'boolean') this.jar.golden = data.jarGolden;
-      if (typeof data.jarHue === 'number') this.jar.hue = data.jarHue;
-      this.jar.x = this.width * (this.width < 500 ? 0.76 : 0.72);
-      this.jar.y = this.height * (this.width < 500 ? 0.53 : 0.62);
-
-      this.idleHealTimer = 0;
-      this.isPassiveRecovering = false;
-      this.smoking = false;
-      this.shopOpen = false;
-      this.lastTime = performance.now();
-      return true;
-    } catch {
-      return false;
     }
   }
 
@@ -2159,9 +2388,15 @@ export class Game {
     const golden = this.jar.golden;
     const x2 = this.jar.hue === 275;
     const toolEarn = TOOLS[this.selectedTool].earn;
-    let rawReward = this.jar.value * this.charMult * toolEarn * this.combo * this.earnPenalty * GLOBAL_EARNINGS_MULT * this.getModeEarnMult();
-    if (this.hasMod('tax')) rawReward *= 0.75;
-    const reward = Math.round(rawReward);
+    const reward = calculateJarReward({
+      baseJarValue: this.jar.value,
+      charMult: this.charMult,
+      toolEarn,
+      combo: this.combo,
+      earnPenalty: this.earnPenalty,
+      gameMode: this.gameMode,
+      challengeMods: this.challengeMods,
+    });
     this.bank += reward;
     this.score += reward;
     this.earnedThisRun += reward;
@@ -2438,7 +2673,7 @@ export class Game {
       const mods = this.challengeMods
         .map((id) => CHALLENGE_MODS.find((m) => m.id === id))
         .filter(Boolean)
-        .map((m) => m!.emoji + ' ' + m!.name)
+        .map((m) => m!.name)
         .join('  ·  ');
       this.banner = {
         title: '⚠ CHALLENGE ' + this.level,
@@ -2449,7 +2684,7 @@ export class Game {
       };
       this.audio?.playSfx('challenge');
     } else {
-      const weather = this.theme.weather === 'fog' ? '  🌫️ Foggy' : this.theme.weather === 'heat' ? '  🌡️ Heatwave' : '';
+      const weather = this.theme.weather === 'fog' ? '  · Foggy' : this.theme.weather === 'heat' ? '  · Heatwave' : '';
       this.banner = {
         title: 'LEVEL ' + this.level + weather,
         sub: 'Fill ' + this.levelQuota() + ' jars!',
@@ -3382,9 +3617,17 @@ export class Game {
       ctx.fillStyle = gold ? '#ffd700' : x2 ? '#c77dff' : '#ffd93d';
       ctx.font = 'bold 14px system-ui, sans-serif';
       ctx.textAlign = 'center';
+      const estReward = calculateJarReward({
+        baseJarValue: j.value,
+        charMult: this.charMult,
+        toolEarn: TOOLS[this.selectedTool].earn,
+        combo: this.combo,
+        earnPenalty: this.earnPenalty,
+        gameMode: this.gameMode,
+        challengeMods: this.challengeMods,
+      });
       ctx.fillText(
-        (gold ? 'GOLD $' : x2 ? '2X $' : '$') +
-          Math.round(j.value * this.charMult * TOOLS[this.selectedTool].earn * GLOBAL_EARNINGS_MULT * this.getModeEarnMult()),
+        (gold ? 'GOLD $' : x2 ? '2X $' : '$') + estReward,
         0,
         -h / 2 - 20
       );
